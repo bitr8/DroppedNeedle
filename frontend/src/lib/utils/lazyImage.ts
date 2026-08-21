@@ -4,6 +4,33 @@ let sharedObserver: IntersectionObserver | null = null;
 let observerRefCount = 0;
 const pendingImages: Set<HTMLImageElement> = new Set();
 
+const MAX_CONCURRENT_LOADS = 3;
+let inFlight = 0;
+const loadQueue: HTMLImageElement[] = [];
+
+function drainQueue() {
+	while (inFlight < MAX_CONCURRENT_LOADS && loadQueue.length > 0) {
+		const img = loadQueue.shift()!;
+		if (!img.isConnected) continue;
+		const src = img.dataset.src;
+		if (!src || img.src === src) continue;
+		inFlight++;
+		const done = () => {
+			inFlight--;
+			drainQueue();
+		};
+		img.addEventListener('load', done, { once: true });
+		img.addEventListener('error', done, { once: true });
+		if (img.dataset.srcset) img.srcset = img.dataset.srcset;
+		img.src = src;
+	}
+}
+
+function enqueueLoad(img: HTMLImageElement) {
+	loadQueue.push(img);
+	drainQueue();
+}
+
 export function cancelPendingImages() {
 	pendingImages.forEach((img) => {
 		if (sharedObserver) {
@@ -13,6 +40,7 @@ export function cancelPendingImages() {
 		img.removeAttribute('srcset');
 	});
 	pendingImages.clear();
+	loadQueue.length = 0;
 }
 
 function getSharedObserver(): IntersectionObserver | null {
@@ -26,9 +54,8 @@ function getSharedObserver(): IntersectionObserver | null {
 						const img = entry.target as HTMLImageElement;
 						const src = img.dataset.src;
 						if (src && img.src !== src) {
-							if (img.dataset.srcset) img.srcset = img.dataset.srcset;
-							img.src = src;
 							sharedObserver?.unobserve(img);
+							enqueueLoad(img);
 						}
 					}
 				});
