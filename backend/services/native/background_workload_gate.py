@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 INTERACTIVE_QUIET_PERIOD_SECONDS = 5.0
 INTERACTIVE_MAX_DEFERRAL_SECONDS = 120.0
+SCAN_STALE_TIMEOUT_SECONDS = 300.0
 
 
 class BackgroundWorkloadGate:
@@ -28,6 +29,7 @@ class BackgroundWorkloadGate:
         *,
         interactive_quiet_period: float = INTERACTIVE_QUIET_PERIOD_SECONDS,
         interactive_max_deferral: float = INTERACTIVE_MAX_DEFERRAL_SECONDS,
+        scan_stale_timeout: float = SCAN_STALE_TIMEOUT_SECONDS,
     ) -> None:
         self._available = asyncio.Event()
         self._available.set()
@@ -38,21 +40,43 @@ class BackgroundWorkloadGate:
         self._active_interactive_requests = 0
         self._interactive_quiet_period = max(0.0, interactive_quiet_period)
         self._interactive_max_deferral = max(0.0, interactive_max_deferral)
+        self._scan_stale_timeout = max(0.0, scan_stale_timeout)
+        self._scan_activated_at: float | None = None
         self.deferred_waits = 0
         self.forced_passes = 0
         self.total_deferred_seconds = 0.0
 
     @property
     def scan_active(self) -> bool:
+        if not self._available.is_set() and self._scan_stale():
+            logger.warning(
+                "Scan gate stale after %.0fs — releasing identification",
+                monotonic() - (self._scan_activated_at or 0),
+            )
+            return False
         return not self._available.is_set()
+
+    def _scan_stale(self) -> bool:
+        return (
+            self._scan_activated_at is not None
+            and self._scan_stale_timeout > 0
+            and monotonic() - self._scan_activated_at > self._scan_stale_timeout
+        )
 
     def set_scan_active(self, active: bool) -> None:
         if active:
+            self._scan_activated_at = monotonic()
             self._available.clear()
         else:
+            self._scan_activated_at = None
             self._available.set()
         self._generation += 1
         self._state_changed.set()
+
+    def refresh_scan_activity(self) -> None:
+        """Reset the stale timer — call from scan progress callbacks."""
+        if self._scan_activated_at is not None:
+            self._scan_activated_at = monotonic()
 
     def note_interactive_activity(self) -> None:
         """Record one authenticated, non-streaming API request."""

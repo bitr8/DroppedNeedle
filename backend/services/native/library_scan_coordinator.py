@@ -66,6 +66,8 @@ class LibraryScanCoordinator:
         if not force and now - self._last_progress_log.get(run.id, 0.0) < 30.0:
             return
         self._last_progress_log[run.id] = now
+        if self._workload_gate is not None:
+            self._workload_gate.refresh_scan_activity()
         counters = run.counters
         total = int(counters.get("total_count", 0))
         inspected = int(counters.get("inspected_count", 0))
