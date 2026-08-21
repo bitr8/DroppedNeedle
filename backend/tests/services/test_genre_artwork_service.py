@@ -58,8 +58,12 @@ def _reader() -> AsyncMock:
         content = str(candidate["content_key"]).encode()
         return content, "image/jpeg", "provider", hashlib.sha1(content).hexdigest()
 
+    async def exists(candidate: dict[str, object]) -> bool:
+        return bool(candidate.get("available", True))
+
     reader = AsyncMock()
     reader.read.side_effect = read
+    reader.exists.side_effect = exists
     return reader
 
 

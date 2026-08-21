@@ -58,7 +58,7 @@ class GenreArtworkService:
                 or int(candidate["cover_version"]) != album.cover_version
             ):
                 return False
-            if await self._local_artwork.read(candidate) is None:
+            if not await self._local_artwork.exists(candidate):
                 return False
         return True
 

@@ -64,6 +64,20 @@ class CachedLocalArtworkService:
                 )
         return list(dict.fromkeys(paths))
 
+    async def exists(self, context: dict[str, Any]) -> bool:
+        source = str(context.get("source") or "")
+        if source == "embedded":
+            file_path = context.get("embedded_file_path")
+            if not isinstance(file_path, str) or not file_path:
+                return False
+            return await asyncio.to_thread(Path(file_path).exists)
+        if source not in {"provider", "cover_cache", "manual"}:
+            return False
+        paths = self._cache_paths(context)
+        if not paths:
+            return False
+        return await asyncio.to_thread(paths[0].exists)
+
     async def read(self, context: dict[str, Any]) -> tuple[bytes, str, str, str] | None:
         source = str(context.get("source") or "")
         if source == "embedded":
