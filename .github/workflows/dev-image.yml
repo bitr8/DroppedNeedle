@@ -109,11 +109,13 @@ jobs:
       - name: Set image tags
         env:
           SHORT_SHA: ${{ steps.sha.outputs.short }}
+          REPO_OWNER: ${{ github.repository_owner }}
         run: |
+          OWNER_LC=$(echo "$REPO_OWNER" | tr '[:upper:]' '[:lower:]')
           {
             echo "TAGS<<EOF"
-            echo "ghcr.io/droppedneedle/droppedneedle:dev"
-            echo "ghcr.io/droppedneedle/droppedneedle:dev-$SHORT_SHA"
+            echo "ghcr.io/$OWNER_LC/droppedneedle:develop"
+            echo "ghcr.io/$OWNER_LC/droppedneedle:dev-$SHORT_SHA"
             if [ -n "$DOCKERHUB_USERNAME" ] && [ -n "$DOCKERHUB_TOKEN" ]; then
               echo "droppedneedle/droppedneedle:dev"
               echo "droppedneedle/droppedneedle:dev-$SHORT_SHA"
