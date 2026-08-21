@@ -52,14 +52,22 @@
 	const active = $derived(
 		history.find((item) => ['queued', 'running', 'paused'].includes(item.operation.state)) ?? null
 	);
+	function formatElapsed(seconds: number): string {
+		const m = Math.floor(seconds / 60);
+		const s = seconds % 60;
+		return m > 0 ? `${m}m ${s}s` : `${s}s`;
+	}
 	const activeProgressLabel = $derived.by(() => {
 		if (!active) return '';
 		if (active.operation.expected_work_count > 0) {
 			return `${active.operation.completed_count.toLocaleString()} / ${active.operation.expected_work_count.toLocaleString()}`;
 		}
+		const elapsed = formatElapsed(
+			Math.max(0, Math.floor(active.operation.updated_at - active.operation.created_at))
+		);
 		return active.phase === 'planning'
-			? 'Discovering files and release bundles'
-			: 'Preparing the preview';
+			? `Discovering files and release bundles · ${elapsed}`
+			: `Preparing the preview · ${elapsed}`;
 	});
 	const readyPreviews = $derived(
 		history
@@ -168,7 +176,7 @@
 		</div>
 	</div>
 
-	{#if settingsQuery.isLoading || policyQuery.isLoading || operationsQuery.isLoading || recoveryQuery.isLoading}
+	{#if settingsQuery.isLoading || policyQuery.isLoading || operationsQuery.isLoading}
 		<div class="space-y-3">
 			<div class="skeleton h-28 rounded-xl"></div>
 			<div class="skeleton h-44 rounded-xl"></div>
