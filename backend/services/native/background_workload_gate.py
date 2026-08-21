@@ -50,10 +50,10 @@ class BackgroundWorkloadGate:
     def scan_active(self) -> bool:
         if not self._available.is_set() and self._scan_stale():
             logger.warning(
-                "Scan gate stale after %.0fs — releasing identification",
+                "Scan gate stale after %.0fs — releasing workers",
                 monotonic() - (self._scan_activated_at or 0),
             )
-            return False
+            self.set_scan_active(False)
         return not self._available.is_set()
 
     def _scan_stale(self) -> bool:
