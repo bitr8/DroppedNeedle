@@ -1,0 +1,24 @@
+* text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.mp3 binary
+*.flac binary
+*.ogg binary
+*.wav binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pyc binary
+*.db binary
+
+# Fork-only files: keep ours during upstream merges
+.gitattributes merge=ours
+.gitignore merge=ours
+.github/workflows/fork-develop.yml merge=ours
