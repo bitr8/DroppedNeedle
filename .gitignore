@@ -50,9 +50,17 @@ ehthumbs.db
 /manage.sh
 /scripts/
 /todos.md
+Docs/
+
+# Claude / AI config (keep out of public fork)
+.claude/
+CLAUDE.md
 AGENTS.md
 AGENTS.md.bak
-Docs/
+LESSONS_LEARNED.md
+CURRENT_WORK.md
+docs/CURRENT_WORK.md
+docs/LESSONS_LEARNED.md
 
 # Local dev app directory
 backend/app-dev/
