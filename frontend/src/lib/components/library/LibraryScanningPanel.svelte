@@ -240,7 +240,11 @@
 					<div class="min-w-0 flex-1">
 						<h3 class="font-semibold">Local files</h3>
 						<p class="text-sm text-base-content/55">
-							{scan ? stateLabel(scan.state) : 'Idle'}{#if activeRun}
+							{scan
+								? stateLabel(scan.state)
+								: activeRun
+									? stateLabel(activeRun.state)
+									: 'Idle'}{#if activeRun}
 								· {activeRun.trigger.replaceAll('_', ' ')} · {scopeLabel}{/if}
 						</p>
 					</div>
