@@ -207,15 +207,21 @@ class HomeService:
     ) -> _HomeUserMusic:
         lb_client = lfm_client = None
         lb_username = lfm_username = None
-        if self._client_factory:
-            lb_client = await self._client_factory.resolve_listenbrainz(user_id)
-            lfm_client = await self._client_factory.resolve_lastfm(user_id)
-            lb_username = await self._client_factory.resolve_listenbrainz_username(
-                user_id
-            )
-            lfm_username = await self._client_factory.resolve_lastfm_username(user_id)
         primary_source = "listenbrainz"
-        if self._prefs_store:
+        if self._client_factory:
+            coros = [
+                self._client_factory.resolve_listenbrainz(user_id),
+                self._client_factory.resolve_lastfm(user_id),
+                self._client_factory.resolve_listenbrainz_username(user_id),
+                self._client_factory.resolve_lastfm_username(user_id),
+            ]
+            if self._prefs_store:
+                coros.append(self._prefs_store.get(user_id))
+            results = await asyncio.gather(*coros)
+            lb_client, lfm_client, lb_username, lfm_username = results[:4]
+            if self._prefs_store:
+                primary_source = results[4].primary_music_source
+        elif self._prefs_store:
             prefs = await self._prefs_store.get(user_id)
             primary_source = prefs.primary_music_source
         lb_enabled = lb_client is not None
