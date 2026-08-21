@@ -152,10 +152,10 @@ class AuthService:
         )
         if user is None or provider is None:
             # Don't reveal whether the username exists (or has a local password).
-            _dummy_verify()
+            await _dummy_verify()
             raise AuthenticationError("Invalid username or password")
 
-        if not _verify_password(password, provider.provider_data or ""):
+        if not await _verify_password(password, provider.provider_data or ""):
             raise AuthenticationError("Invalid username or password")
 
         raw_token = await self._issue_session(user.id, user_agent=user_agent)
@@ -216,7 +216,7 @@ class AuthService:
         local = await self._local_provider(user_id)
         if local is None:
             raise AuthenticationError("No local password is set for this account")
-        if not _verify_password(current_password, local.provider_data or ""):
+        if not await _verify_password(current_password, local.provider_data or ""):
             raise AuthenticationError("Current password is incorrect")
         _validate_password(new_password)
         await _check_hibp(new_password)
@@ -492,7 +492,7 @@ def _hash_recovery_code(code: str) -> str:
     return hashlib.sha256(code.encode()).hexdigest()
 
 
-def _verify_password(password: str, provider_data: str) -> bool:
+def _verify_password_sync(password: str, provider_data: str) -> bool:
     try:
         data = json.loads(provider_data)
         stored_hash = data.get(_PW_KEY, "")
@@ -501,9 +501,11 @@ def _verify_password(password: str, provider_data: str) -> bool:
         return False
 
 
-def _dummy_verify() -> None:
-    """Run a bcrypt verify against a dummy hash to prevent timing attacks
-    that would reveal whether an email address is registered."""
+async def _verify_password(password: str, provider_data: str) -> bool:
+    return await asyncio.to_thread(_verify_password_sync, password, provider_data)
+
+
+def _dummy_verify_sync() -> None:
     try:
         _bcrypt.checkpw(
             b"dummy",
@@ -511,6 +513,10 @@ def _dummy_verify() -> None:
         )
     except Exception:  # noqa: BLE001
         pass
+
+
+async def _dummy_verify() -> None:
+    await asyncio.to_thread(_dummy_verify_sync)
 
 
 def _validate_password(password: str) -> None:
