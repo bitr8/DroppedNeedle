@@ -92,16 +92,15 @@ def get_coverart_http_client(settings: Optional[Settings] = None) -> httpx.Async
     Wikidata/Wikimedia, media-server art). Covers are degradable, so this client uses a
     SHORT budget (6s read / 3s connect) rather than the 10s default: a cover that can't be
     had quickly falls through to the placeholder and is warmed in the background instead of
-    holding the request open. A separate name is required because HttpClientFactory caches
-    by name and the first caller's kwargs win, so the shared "default" client can't be
-    retuned for covers without affecting MusicBrainz et al."""
+    holding the request open. Connection pool is capped at 10 so slow/failing cover fetches
+    cannot starve the main pool that serves API responses."""
     if settings is None:
         settings = get_settings()
     return HttpClientFactory.get_client(
         name="coverart",
         timeout=6.0,
         connect_timeout=3.0,
-        max_connections=settings.http_max_connections,
-        max_keepalive=settings.http_max_keepalive,
+        max_connections=10,
+        max_keepalive=10,
         settings=settings,
     )

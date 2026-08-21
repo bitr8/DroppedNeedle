@@ -101,7 +101,7 @@ def _default_cache_dir() -> Path:
 
 
 _coverart_circuit_breaker = CircuitBreaker(
-    failure_threshold=5,
+    failure_threshold=3,
     success_threshold=2,
     timeout=60.0,
     name="coverart",

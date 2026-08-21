@@ -15,6 +15,10 @@ def test_coverart_client_uses_short_budget_and_distinct_name():
     assert client.timeout.read == 6.0
     assert client.timeout.connect == 3.0
 
+    # Pool capped at 10 so cover fetches cannot starve the main pool.
+    pool = client._transport._pool
+    assert pool._max_connections == 10
+
     # Cached under its own name, and a different instance from the default client.
     assert HttpClientFactory._clients.get("coverart") is client
     assert client is not get_http_client()
