@@ -486,12 +486,20 @@
 				<div class="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
 					<div class="management-summary-card">
 						<span class="text-xs text-base-content/50">Eligible to write</span><strong
-							>{preview.state === 'ready' || preview.summary.eligible_count > 0 ? preview.summary.eligible_count + preview.summary.warning_count : '—'}</strong
-						><small>{preview.state === 'ready' || preview.summary.eligible_count > 0 ? `${preview.summary.warning_count} with warnings` : 'Computing…'}</small>
+							>{preview.state === 'ready' || preview.summary.eligible_count > 0
+								? preview.summary.eligible_count + preview.summary.warning_count
+								: '—'}</strong
+						><small
+							>{preview.state === 'ready' || preview.summary.eligible_count > 0
+								? `${preview.summary.warning_count} with warnings`
+								: 'Computing…'}</small
+						>
 					</div>
 					<div class="management-summary-card">
 						<span class="text-xs text-base-content/50">Blocked / unchanged</span><strong
-							>{preview.state === 'ready' || preview.summary.eligible_count > 0 ? `${preview.summary.blocked_count} / ${preview.summary.no_change_count}` : '—'}</strong
+							>{preview.state === 'ready' || preview.summary.eligible_count > 0
+								? `${preview.summary.blocked_count} / ${preview.summary.no_change_count}`
+								: '—'}</strong
 						><small>Never implicitly included</small>
 					</div>
 					<div class="management-summary-card">
@@ -525,18 +533,17 @@
 					<span class="badge badge-outline"
 						><Clock3 class="h-3 w-3" /> Expires {formatDate(preview.expires_at)}</span
 					>{#if preview.ready_for_confirmation && !preview.expired}<button
-						class="badge badge-outline hover:badge-info cursor-pointer"
-						disabled={extendPreview.isPending}
-						onclick={() =>
-							void extendPreview.mutateAsync({
-								jobId,
-								request: {
-									expected_operation_row_revision: preview.operation_row_revision,
-									hours: 24
-								}
-							})}
-						>Keep 24h</button
-					>{/if}
+							class="badge badge-outline hover:badge-info cursor-pointer"
+							disabled={extendPreview.isPending}
+							onclick={() =>
+								void extendPreview.mutateAsync({
+									jobId,
+									request: {
+										expected_operation_row_revision: preview.operation_row_revision,
+										hours: 24
+									}
+								})}>Keep 24h</button
+						>{/if}
 					<span class="badge badge-outline"><HardDrive class="h-3 w-3" /> {providerStatus}</span>
 				</div>
 			</header>

@@ -206,7 +206,9 @@
 						<p class="truncate text-sm font-semibold leading-tight">{playlist.name}</p>
 						<p class="truncate text-xs text-base-content/40">
 							{#if playlist.track_count}{playlist.track_count} tracks{/if}
-							{#if playlist.track_count && playlist.owner} · {/if}
+							{#if playlist.track_count && playlist.owner}
+								·
+							{/if}
 							{#if playlist.owner}{playlist.owner}{/if}
 						</p>
 					</div>

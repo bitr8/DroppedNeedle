@@ -107,7 +107,10 @@
 				<span class="min-w-0 flex-1">
 					<span class="relative block h-7 sm:h-8">
 						{#if !term}
-							<span class="pointer-events-none absolute inset-0 flex items-center text-lg font-semibold text-base-content/40 sm:text-xl" aria-hidden="true">
+							<span
+								class="pointer-events-none absolute inset-0 flex items-center text-lg font-semibold text-base-content/40 sm:text-xl"
+								aria-hidden="true"
+							>
 								<span class="truncate">{hint}</span>
 							</span>
 						{/if}

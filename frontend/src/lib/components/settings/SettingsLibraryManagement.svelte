@@ -678,7 +678,9 @@
 		}
 		const proposed = $state.snapshot(draft);
 		resetActivationSession();
-		await reviewAndSave(proposed, opener).catch(() => toastStore.show({ message: 'Failed to save settings', type: 'error' }));
+		await reviewAndSave(proposed, opener).catch(() =>
+			toastStore.show({ message: 'Failed to save settings', type: 'error' })
+		);
 	}
 
 	function showActivationDialog(opener: HTMLButtonElement | null): void {
@@ -779,7 +781,9 @@
 
 	function saveDraft(event: MouseEvent & { currentTarget: HTMLButtonElement }): void {
 		if (!draft) return;
-		void reviewAndSave($state.snapshot(draft), event.currentTarget).catch(() => toastStore.show({ message: 'Failed to save settings', type: 'error' }));
+		void reviewAndSave($state.snapshot(draft), event.currentTarget).catch(() =>
+			toastStore.show({ message: 'Failed to save settings', type: 'error' })
+		);
 	}
 
 	onMount(() => {
@@ -1373,8 +1377,8 @@
 									· {(activationQuery.data?.summary.item_count ?? 0).toLocaleString()}
 									files found · {(activationQuery.data?.summary.bundle_count ?? 0).toLocaleString()}
 									albums{:else}
-									· Discovering files and albums{/if}{:else}Every required dry run is
-								accepted. Automatic writes are still off.{/if}
+									· Discovering files and albums{/if}{:else}Every required dry run is accepted.
+								Automatic writes are still off.{/if}
 						</p>
 					</div>
 					{#if !activationCoversCurrentDraft}<button

@@ -241,7 +241,9 @@
 											jobId: active.operation.id,
 											expectedRevision: active.operation.row_revision
 										})
-										.catch(() => toastStore.show({ message: 'Failed to resume operation', type: 'error' }))}><CirclePlay class="h-4 w-4" /> Resume</button
+										.catch(() =>
+											toastStore.show({ message: 'Failed to resume operation', type: 'error' })
+										)}><CirclePlay class="h-4 w-4" /> Resume</button
 							>{:else if active.operation.state === 'running'}<button
 								class="btn btn-outline btn-sm"
 								disabled={pauseOperation.isPending}
@@ -251,7 +253,9 @@
 											jobId: active.operation.id,
 											expectedRevision: active.operation.row_revision
 										})
-										.catch(() => toastStore.show({ message: 'Failed to pause operation', type: 'error' }))}><CirclePause class="h-4 w-4" /> Pause</button
+										.catch(() =>
+											toastStore.show({ message: 'Failed to pause operation', type: 'error' })
+										)}><CirclePause class="h-4 w-4" /> Pause</button
 							>{/if}<a
 							class="btn btn-ghost btn-sm"
 							href={operationHref(
@@ -339,8 +343,8 @@
 				>
 					<AlertTriangle class="mt-0.5 h-5 w-5" /><span
 						><strong>Recovery needs attention</strong><br />{recoveryQuery.data
-							.needs_attention_count} albums need review; {recoveryQuery.data
-							.cleanup_pending_count} have safe cleanup pending. No uncertain file is deleted automatically.</span
+							.needs_attention_count} albums need review; {recoveryQuery.data.cleanup_pending_count} have
+						safe cleanup pending. No uncertain file is deleted automatically.</span
 					>
 				</div>{:else if recoveryUnavailable}<div class="alert alert-error items-start" role="alert">
 					<AlertTriangle class="mt-0.5 h-5 w-5" /><span

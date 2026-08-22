@@ -259,7 +259,9 @@
 										runId: activeRun.id,
 										expectedRevision: activeRun.row_revision
 									})
-									.catch(() => toastStore.show({ message: 'Failed to resume scan', type: 'error' }))}
+									.catch(() =>
+										toastStore.show({ message: 'Failed to resume scan', type: 'error' })
+									)}
 							aria-label="Resume local scan"><CirclePlay class="h-4 w-4" /> Resume</button
 						>
 					{:else if activeRun && !['pausing', 'stopping'].includes(activeRun.state)}
@@ -398,7 +400,9 @@
 							onclick={() =>
 								void resumeIdentification
 									.mutateAsync(identification.control_revision ?? 0)
-									.catch(() => toastStore.show({ message: 'Failed to resume identification', type: 'error' }))}
+									.catch(() =>
+										toastStore.show({ message: 'Failed to resume identification', type: 'error' })
+									)}
 							aria-label="Resume identification"><CirclePlay class="h-4 w-4" /> Resume</button
 						>{:else if identification?.waiting_count && identification.control_revision}<button
 							class="btn btn-outline btn-sm"
@@ -406,7 +410,9 @@
 							onclick={() =>
 								void pauseIdentification
 									.mutateAsync(identification.control_revision ?? 0)
-									.catch(() => toastStore.show({ message: 'Failed to pause identification', type: 'error' }))}
+									.catch(() =>
+										toastStore.show({ message: 'Failed to pause identification', type: 'error' })
+									)}
 							aria-label="Pause identification"
 							><CirclePause class="h-4 w-4" />
 							{identification.state === 'pausing' ? 'Pausing...' : 'Pause'}</button

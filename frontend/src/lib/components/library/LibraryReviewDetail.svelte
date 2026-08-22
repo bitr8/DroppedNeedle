@@ -274,7 +274,12 @@
 										disabled={accept.isPending}
 										onclick={(event) =>
 											candidate.automatic_safe
-												? void acceptCandidate(candidate, false).catch(() => toastStore.show({ message: 'Failed to accept candidate', type: 'error' }))
+												? void acceptCandidate(candidate, false).catch(() =>
+														toastStore.show({
+															message: 'Failed to accept candidate',
+															type: 'error'
+														})
+													)
 												: openOverrideConfirmation(candidate, event)}
 										>{candidate.automatic_safe ? 'Use this release' : 'Use anyway...'}</button
 									>
@@ -341,7 +346,9 @@
 								if (request)
 									void keep
 										.mutateAsync({ reviewId: detail.review.id, body: request })
-										.catch(() => toastStore.show({ message: 'Failed to keep as tagged', type: 'error' }));
+										.catch(() =>
+											toastStore.show({ message: 'Failed to keep as tagged', type: 'error' })
+										);
 							}}><Check class="h-4 w-4" /> Keep as tagged</button
 						>{/if}
 					{#if detail.available_actions.includes('detach_keep_tagged')}<button
@@ -376,7 +383,9 @@
 								if (request)
 									void dismiss
 										.mutateAsync({ reviewId: detail.review.id, body: request })
-										.catch(() => toastStore.show({ message: 'Failed to dismiss review', type: 'error' }));
+										.catch(() =>
+											toastStore.show({ message: 'Failed to dismiss review', type: 'error' })
+										);
 							}}>Dismiss</button
 						>{/if}
 					<button class="btn btn-ghost" onclick={() => dialog.close()}>Leave for later</button>

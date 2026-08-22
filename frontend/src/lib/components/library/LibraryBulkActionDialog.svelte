@@ -175,21 +175,27 @@
 					onclick={() =>
 						void pause
 							.mutateAsync({ jobId: job.id, expectedRevision: job.row_revision })
-							.catch(() => toastStore.show({ message: 'Failed to pause bulk review', type: 'error' }))}
+							.catch(() =>
+								toastStore.show({ message: 'Failed to pause bulk review', type: 'error' })
+							)}
 					aria-label="Pause bulk review"><CirclePause class="h-3.5 w-3.5" /> Pause</button
 				>{:else if job.state === 'paused'}<button
 					class="btn btn-ghost btn-xs"
 					onclick={() =>
 						void resume
 							.mutateAsync({ jobId: job.id, expectedRevision: job.row_revision })
-							.catch(() => toastStore.show({ message: 'Failed to resume bulk review', type: 'error' }))}
+							.catch(() =>
+								toastStore.show({ message: 'Failed to resume bulk review', type: 'error' })
+							)}
 					aria-label="Resume bulk review"><CirclePlay class="h-3.5 w-3.5" /> Resume</button
 				>{/if}{#if ['queued', 'running', 'paused'].includes(job.state)}<button
 					class="btn btn-ghost btn-xs text-error"
 					onclick={() =>
 						void stop
 							.mutateAsync({ jobId: job.id, expectedRevision: job.row_revision })
-							.catch(() => toastStore.show({ message: 'Failed to stop bulk review', type: 'error' }))}
+							.catch(() =>
+								toastStore.show({ message: 'Failed to stop bulk review', type: 'error' })
+							)}
 					aria-label="Stop bulk review"><OctagonX class="h-3.5 w-3.5" /> Stop</button
 				>{/if}{#if operationFinished}<button
 					class="btn btn-ghost btn-xs"

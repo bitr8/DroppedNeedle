@@ -376,8 +376,7 @@
 					<div>
 						<h3 class="font-display text-lg font-semibold">Choose scope</h3>
 						<p class="text-sm text-base-content/55">
-							Release organization expands selected tracks to complete albums before
-							planning.
+							Release organization expands selected tracks to complete albums before planning.
 						</p>
 					</div>
 					<div class="management-scope-tabs" role="group" aria-label="Management scope type">

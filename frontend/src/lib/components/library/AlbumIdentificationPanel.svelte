@@ -395,7 +395,9 @@
 		event: MouseEvent & { currentTarget: HTMLButtonElement }
 	): void {
 		if (candidate.automatic_safe) {
-			void applyCandidate(candidate, false).catch(() => toastStore.show({ message: 'Failed to apply identity', type: 'error' }));
+			void applyCandidate(candidate, false).catch(() =>
+				toastStore.show({ message: 'Failed to apply identity', type: 'error' })
+			);
 			return;
 		}
 		confirmationOpener = event.currentTarget;
@@ -609,8 +611,10 @@
 						<button
 							class="btn btn-ghost btn-sm text-error"
 							disabled={conversionCancel.isPending}
-							onclick={() => void cancelConversion().catch(() => toastStore.show({ message: 'Failed to cancel conversion', type: 'error' }))}
-							>Cancel conversion</button
+							onclick={() =>
+								void cancelConversion().catch(() =>
+									toastStore.show({ message: 'Failed to cancel conversion', type: 'error' })
+								)}>Cancel conversion</button
 						>
 					{/if}
 				</section>
@@ -716,7 +720,12 @@
 								onclick={() =>
 									void stop
 										.mutateAsync({ jobId: job.id, expectedRevision: job.row_revision })
-										.catch(() => toastStore.show({ message: 'Failed to discard identification', type: 'error' }))}
+										.catch(() =>
+											toastStore.show({
+												message: 'Failed to discard identification',
+												type: 'error'
+											})
+										)}
 								aria-label="Discard identification evidence"
 							>
 								<OctagonX class="h-4 w-4" /> Discard
@@ -728,7 +737,9 @@
 								onclick={() =>
 									void pause
 										.mutateAsync({ jobId: job.id, expectedRevision: job.row_revision })
-										.catch(() => toastStore.show({ message: 'Failed to pause identification', type: 'error' }))}
+										.catch(() =>
+											toastStore.show({ message: 'Failed to pause identification', type: 'error' })
+										)}
 								aria-label="Pause identification"><CirclePause class="h-4 w-4" /> Pause</button
 							>
 						{:else if job.state === 'paused'}
@@ -737,7 +748,9 @@
 								onclick={() =>
 									void resume
 										.mutateAsync({ jobId: job.id, expectedRevision: job.row_revision })
-										.catch(() => toastStore.show({ message: 'Failed to resume identification', type: 'error' }))}
+										.catch(() =>
+											toastStore.show({ message: 'Failed to resume identification', type: 'error' })
+										)}
 								aria-label="Resume identification"><CirclePlay class="h-4 w-4" /> Resume</button
 							>
 						{/if}
@@ -747,7 +760,9 @@
 								onclick={() =>
 									void stop
 										.mutateAsync({ jobId: job.id, expectedRevision: job.row_revision })
-										.catch(() => toastStore.show({ message: 'Failed to stop identification', type: 'error' }))}
+										.catch(() =>
+											toastStore.show({ message: 'Failed to stop identification', type: 'error' })
+										)}
 								aria-label="Stop identification"><OctagonX class="h-4 w-4" /> Stop</button
 							>
 						{/if}
@@ -1064,8 +1079,12 @@
 											disabled={selectCandidate.isPending ||
 												!canSealCustomEdition(selectedCandidate)}
 											onclick={() =>
-												void createCustomEdition(selectedCandidate).catch(() => toastStore.show({ message: 'Failed to create custom edition', type: 'error' }))}
-											>Create Custom edition</button
+												void createCustomEdition(selectedCandidate).catch(() =>
+													toastStore.show({
+														message: 'Failed to create custom edition',
+														type: 'error'
+													})
+												)}>Create Custom edition</button
 										>
 										{#if !canSealCustomEdition(selectedCandidate)}
 											<small>This candidate conflicts with the album title or artist.</small>
@@ -1085,8 +1104,12 @@
 												conversionPreflight.isPending ||
 												Boolean(conversion)}
 											onclick={() =>
-												void prepareEditionConversion(selectedCandidate).catch(() => toastStore.show({ message: 'Failed to prepare conversion', type: 'error' }))}
-											>Prepare conversion</button
+												void prepareEditionConversion(selectedCandidate).catch(() =>
+													toastStore.show({
+														message: 'Failed to prepare conversion',
+														type: 'error'
+													})
+												)}>Prepare conversion</button
 										>
 									</article>
 									<article>
@@ -1099,8 +1122,10 @@
 										<button
 											class="btn btn-ghost btn-sm"
 											disabled={selectCandidate.isPending}
-											onclick={() => void leaveUnmanaged(selectedCandidate).catch(() => toastStore.show({ message: 'Failed to leave unmanaged', type: 'error' }))}
-											>Leave unmanaged</button
+											onclick={() =>
+												void leaveUnmanaged(selectedCandidate).catch(() =>
+													toastStore.show({ message: 'Failed to leave unmanaged', type: 'error' })
+												)}>Leave unmanaged</button
 										>
 									</article>
 								</section>
@@ -1148,8 +1173,10 @@
 							<button
 								class="btn btn-outline btn-sm"
 								disabled={selectCandidate.isPending}
-								onclick={() => void leaveUnmanagedWithoutCandidate().catch(() => toastStore.show({ message: 'Failed to leave unmanaged', type: 'error' }))}
-								>Leave unmanaged</button
+								onclick={() =>
+									void leaveUnmanagedWithoutCandidate().catch(() =>
+										toastStore.show({ message: 'Failed to leave unmanaged', type: 'error' })
+									)}>Leave unmanaged</button
 							>
 							<p class="text-xs text-base-content/50">
 								Keep valid release-group and recording links and pause management warnings.
