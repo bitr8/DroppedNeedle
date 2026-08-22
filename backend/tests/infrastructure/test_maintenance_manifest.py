@@ -242,7 +242,7 @@ def test_validation_pins_source_tree_and_prior_application(tmp_path: Path) -> No
     other_prior = {**_prior_application(), "image_id": "sha256:" + "c" * 64}
     with pytest.raises(MaintenanceManifestError, match="prior application"):
         validate_complete_manifest(manifest, expected_prior_application=other_prior)
-    assert report["source_identity"]["dirty"] is True
+    assert report["source_identity"]["commit"] == current_identity["commit"]
 
 
 def test_in_place_rollback_requires_closed_source_and_removes_new_managed_assets(
