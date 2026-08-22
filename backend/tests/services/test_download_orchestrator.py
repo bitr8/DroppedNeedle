@@ -690,6 +690,33 @@ async def test_nothing_delivered_fails_with_peer_message_not_mount(tmp_path: Pat
 
 
 @pytest.mark.asyncio
+async def test_later_delivery_outranks_nothing_delivered_message(tmp_path: Path):
+    """Peer 1 timed out with zero bytes, peer 2 delivered but the files weren't on the
+    mount: the message must point at the mount, never claim no peer sent data."""
+    from services.native.file_processor import SOURCE_FILE_MISSING
+
+    client = _FailoverClient({"p1": "timeout", "p2": "complete"})
+    store, orch, _fp, _lib = _build(
+        tmp_path,
+        client=client,
+        scorer_result=[_candidate(0.9, username="p1"), _candidate(0.8, username="p2")],
+        fp_result=ProcessResult(
+            succeeded=[],
+            failed=[FileFailure(filename="x/01.flac", reason=SOURCE_FILE_MISSING)],
+        ),
+        imported_rows=[],
+    )
+    task = await _new_task(store)
+
+    await orch.process_task(task.id)
+
+    final = await store.get_task(task.id)
+    assert final.status == "failed"
+    assert "slskd downloads" in final.error_message
+    assert "No peer sent any data" not in final.error_message
+
+
+@pytest.mark.asyncio
 async def test_import_failure_fails_with_library_message_not_soulseek(tmp_path: Path):
     """slskd delivered the files and we found them, but writing them into the library
     failed (IMPORT_FAILED - perms/disk/a rejected cross-mount copy). A local fault: the
@@ -1010,6 +1037,8 @@ class _FailoverClient:
                 files_completed=len(handle.filenames),
                 bytes_=100,
             )
+        if mode == "timeout":
+            return _status("failed")  # every transfer timed out, zero bytes
         return _status("downloading", active=True, bytes_=10)  # frozen
 
     async def cancel(self, handle):

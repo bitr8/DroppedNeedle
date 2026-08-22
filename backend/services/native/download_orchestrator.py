@@ -794,6 +794,7 @@ class DownloadOrchestrator:
         source_missing = False
         import_failed = False
         nothing_delivered = False
+        any_delivered = False
         while True:
             attempt_result = ProcessResult(
                 succeeded=[], failed=[], workspace_disposition="discard"
@@ -924,10 +925,12 @@ class DownloadOrchestrator:
                 )
                 if any(f.reason == WRONG_TRACK for f in result.failed):
                     wrong_track = True
+                delivered = outcome == _OUT_COMPLETED or bool(
+                    status and (status.files_completed or status.bytes_downloaded)
+                )
+                any_delivered = any_delivered or delivered
                 if any(f.reason == SOURCE_FILE_MISSING for f in result.failed):
-                    if outcome == _OUT_COMPLETED or bool(
-                        status and (status.files_completed or status.bytes_downloaded)
-                    ):
+                    if delivered:
                         source_missing = True
                     else:
                         nothing_delivered = True
@@ -1033,7 +1036,7 @@ class DownloadOrchestrator:
                     imported_any,
                     source_missing=source_missing,
                     import_failed=import_failed,
-                    nothing_delivered=nothing_delivered,
+                    nothing_delivered=nothing_delivered and not any_delivered,
                     process_result=attempt_result,
                 )
                 return
