@@ -174,7 +174,7 @@ describe('LibraryOverviewPanel', () => {
 		await expect.element(page.getByText(/40 \/ 100 files/)).toBeVisible();
 		await expect
 			.element(page.getByRole('link', { name: 'Open details' }))
-			.toHaveAttribute('href', '/library/management?tab=scanning');
+			.toHaveAttribute('href', '/manage?tab=scan');
 	});
 
 	it('shows track and review stats with a link to the review queue', async () => {

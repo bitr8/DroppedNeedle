@@ -1,5 +1,5 @@
 import { page } from '@vitest/browser/context';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
 import type { HeldImport } from '$lib/types';
@@ -8,7 +8,8 @@ const h = vi.hoisted(() => ({
 	importMut: vi.fn(),
 	discardMut: vi.fn(),
 	importError: null as { message: string } | null,
-	discardError: null as { message: string } | null
+	discardError: null as { message: string } | null,
+	toastUndo: vi.fn()
 }));
 
 vi.mock('$lib/queries/downloads/DownloadMutations.svelte', () => ({
@@ -26,6 +27,10 @@ vi.mock('$lib/queries/downloads/DownloadMutations.svelte', () => ({
 			return h.discardError;
 		}
 	})
+}));
+
+vi.mock('$lib/stores/toast', () => ({
+	toastStore: { undo: (...args: unknown[]) => h.toastUndo(...args), show: vi.fn() }
 }));
 
 import HeldTrackCard from './HeldTrackCard.svelte';
@@ -69,8 +74,13 @@ describe('HeldTrackCard', () => {
 	beforeEach(() => {
 		h.importMut.mockReset();
 		h.discardMut.mockReset();
+		h.toastUndo.mockReset();
 		h.importError = null;
 		h.discardError = null;
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
 	});
 
 	it('shows the track, the couldn’t-verify state, and the AcoustID evidence', async () => {
@@ -109,8 +119,14 @@ describe('HeldTrackCard', () => {
 	});
 
 	it('discards the held track on "Discard"', async () => {
+		vi.useFakeTimers();
 		renderCard(held());
 		await page.getByRole('button', { name: /Discard/ }).click();
+
+		expect(h.toastUndo).toHaveBeenCalledWith('File will be discarded', expect.any(Function));
+		expect(h.discardMut).not.toHaveBeenCalled();
+
+		await vi.advanceTimersByTimeAsync(6000);
 		expect(h.discardMut).toHaveBeenCalledWith(
 			{ id: 7, release_group_mbid: 'rg-1' },
 			expect.objectContaining({ onSuccess: expect.any(Function) })

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { createRawSnippet } from 'svelte';
 import WorkRow from './WorkRow.svelte';
+import '../../../app.css';
 
 describe('WorkRow', () => {
 	it('shows a determinate bar while running', async () => {

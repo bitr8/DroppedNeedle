@@ -32,7 +32,6 @@
 	// shareable/back-button-stable links, matching the ?tab= deep-link contract
 	let tab = $state<Tab>(parseTab(page.url.searchParams.get('tab')));
 	const highlight = $derived(page.url.searchParams.get('highlight'));
-	console.error('DEBUG highlight=', highlight, 'url=', page.url.href);
 
 	function setTab(next: Tab) {
 		tab = next;

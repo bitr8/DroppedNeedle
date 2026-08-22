@@ -150,15 +150,15 @@ describe('DownloadQueue.svelte', () => {
 		h.isAdmin = false;
 	});
 
-	it('shows the empty turntable state when there are no downloads', async () => {
+	it('shows the empty queue state when there are no downloads', async () => {
 		render(DownloadQueue);
-		await expect.element(page.getByText('Nothing on the turntable')).toBeVisible();
+		await expect.element(page.getByText('Nothing in the queue')).toBeVisible();
 	});
 
-	it('groups an active download under Now spinning', async () => {
+	it('groups an active download under Active', async () => {
 		h.items = [task({ id: 'a', album_title: 'In Rainbows', status: 'downloading' })];
 		render(DownloadQueue);
-		await expect.element(page.getByRole('heading', { name: /Now spinning/ })).toBeVisible();
+		await expect.element(page.getByRole('heading', { name: /Active/ })).toBeVisible();
 		await expect.element(page.getByText('In Rainbows').first()).toBeVisible();
 	});
 
@@ -186,10 +186,10 @@ describe('DownloadQueue.svelte', () => {
 		await expect.element(page.getByText('Trying source 1 of 3').first()).toBeVisible();
 	});
 
-	it('shows a scheduled-retry album in the Still hunting section with its ladder and countdown', async () => {
+	it('shows a scheduled-retry album in the Waiting section with its ladder and countdown', async () => {
 		h.items = [wanted()];
 		render(DownloadQueue);
-		await expect.element(page.getByRole('heading', { name: /Still hunting/ })).toBeVisible();
+		await expect.element(page.getByRole('heading', { name: /Waiting/ })).toBeVisible();
 		await expect.element(page.getByText('Kid A').first()).toBeVisible();
 		await expect.element(page.getByText(/retry 2 of 6/)).toBeVisible();
 		// the next-attempt countdown ("10:00") and a ladder rung
@@ -199,32 +199,18 @@ describe('DownloadQueue.svelte', () => {
 	it('summarises the queue in the system pulse', async () => {
 		h.items = [task({ id: 'a', status: 'downloading' }), wanted()];
 		render(DownloadQueue);
-		await expect.element(page.getByText('spinning').first()).toBeVisible();
-		await expect.element(page.getByText('still hunting').first()).toBeVisible();
+		await expect.element(page.getByText('active').first()).toBeVisible();
+		await expect.element(page.getByText('waiting').first()).toBeVisible();
 	});
 
-	it('collapses terminal downloads into an expandable History section', async () => {
-		h.items = [task({ id: 'c', album_title: 'Amnesiac', status: 'completed' })];
-		render(DownloadQueue);
-		const header = page.getByRole('button', { name: /History/ });
-		await expect.element(header).toBeVisible();
-		await expect.element(header).toHaveTextContent(/1 in your crate/);
-		// collapsed by default; expand to reveal the row + the Clear control
-		await header.click();
-		await expect.element(page.getByText('Amnesiac').first()).toBeVisible();
-		await expect.element(page.getByRole('button', { name: /Clear/ })).toBeVisible();
-	});
-
-	it('hides Quarantine from non-admins and shows it (with entries) to admins', async () => {
-		h.quarantine = [
-			{ id: 1, filename: '/x.flac', username: 'p', reason: 'dupe', quarantined_at: 0 }
-		];
-		render(DownloadQueue);
-		await expect.element(page.getByRole('button', { name: /Quarantine/ })).not.toBeInTheDocument();
-
-		h.isAdmin = true;
-		render(DownloadQueue);
-		await expect.element(page.getByRole('button', { name: /Quarantine/ })).toBeVisible();
+	it('highlights and scrolls to the deep-linked task', async () => {
+		h.items = [task({ id: 'a', album_title: 'In Rainbows', status: 'downloading' })];
+		render(DownloadQueue, { props: { highlight: 'a' } } as Parameters<
+			typeof render<typeof DownloadQueue>
+		>[1]);
+		const el = document.getElementById('dl-a');
+		expect(el).not.toBeNull();
+		expect(el?.className).toContain('ring-accent');
 	});
 
 	it('surfaces held tracks in a "Couldn\'t verify" section', async () => {

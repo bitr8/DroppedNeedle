@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({
 	items: {} as Record<string, unknown>,
 	apply: vi.fn(),
 	discard: vi.fn(),
+	extend: vi.fn(),
 	resolve: vi.fn(),
 	goto: vi.fn()
 }));
@@ -45,6 +46,7 @@ vi.mock('$lib/queries/library-management/LibraryManagementQueries.svelte', () =>
 vi.mock('$lib/queries/library-management/LibraryManagementMutations.svelte', () => ({
 	applyLibraryManagementPreviewMutation: () => ({ mutateAsync: h.apply, isPending: false }),
 	discardLibraryManagementPreviewMutation: () => ({ mutateAsync: h.discard, isPending: false }),
+	extendLibraryManagementPreviewMutation: () => ({ mutateAsync: h.extend, isPending: false }),
 	createLibraryManagementDuplicateResolutionMutation: () => ({
 		mutateAsync: h.resolve,
 		isPending: false
@@ -536,7 +538,7 @@ describe('LibraryManagementPreviewPage', () => {
 		await expect.element(page.getByText('Remove', { exact: true })).toBeVisible();
 	});
 
-	it('shows exact diffs and requires the private token plus typed apply confirmation', async () => {
+	it('shows exact diffs and applies with the stored preview token', async () => {
 		h.items = {
 			...h.items,
 			data: {
@@ -597,10 +599,7 @@ describe('LibraryManagementPreviewPage', () => {
 		await expect
 			.element(page.getByRole('heading', { name: 'Apply this exact preview?' }))
 			.toHaveFocus();
-		await expect.element(page.getByRole('button', { name: 'Apply exact preview' })).toBeDisabled();
-		await page.getByRole('textbox', { name: /CONFIRM/ }).fill('APPLY LIBRARY MANAGEMENT');
-		await expect.element(page.getByRole('button', { name: 'Apply exact preview' })).toBeDisabled();
-		await page.getByRole('textbox', { name: /CONFIRM/ }).fill('CONFIRM');
+		await expect.element(page.getByRole('button', { name: 'Apply exact preview' })).toBeEnabled();
 		await page.getByRole('button', { name: 'Apply exact preview' }).click();
 
 		expect(h.apply).toHaveBeenCalledWith({
@@ -628,7 +627,6 @@ describe('LibraryManagementPreviewPage', () => {
 		await expect.element(page.getByText('Read-only plan · no files changed')).toBeVisible();
 		await view.rerender({ jobId: 'resolution-1' });
 		await page.getByRole('button', { name: /Write tags and organize 1 file/ }).click();
-		await page.getByRole('textbox', { name: /CONFIRM/ }).fill('CONFIRM');
 		await page.getByRole('button', { name: 'Apply exact preview' }).click();
 
 		expect(h.apply).toHaveBeenCalledWith({
@@ -1016,10 +1014,9 @@ describe('LibraryManagementPreviewPage', () => {
 		await page.getByRole('button', { name: example.button }).click();
 		await expect.element(page.getByRole('heading', { name: example.title })).toHaveFocus();
 		await expect.element(page.getByText(example.detail)).toBeVisible();
-		await expect.element(page.getByRole('textbox', { name: 'Type CONFIRM' })).toBeVisible();
 		await expect
 			.element(page.getByRole('button', { name: example.confirm, exact: true }))
-			.toBeDisabled();
+			.toBeEnabled();
 	});
 
 	it('keeps activation previews read-only while exposing every file-level result', async () => {

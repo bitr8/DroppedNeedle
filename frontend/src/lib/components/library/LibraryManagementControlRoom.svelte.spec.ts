@@ -307,7 +307,7 @@ describe('LibraryManagementControlRoom', () => {
 		render(LibraryManagementControlRoom);
 
 		await expect.element(page.getByText('Write-access dry run')).toBeVisible();
-		await expect.element(page.getByText(/Discovering files and release bundles/)).toBeVisible();
+		await expect.element(page.getByText(/Discovering files and albums/)).toBeVisible();
 		await expect.element(page.getByText('0 / 0')).not.toBeInTheDocument();
 		await expect
 			.element(page.getByRole('link', { name: 'Open details' }))

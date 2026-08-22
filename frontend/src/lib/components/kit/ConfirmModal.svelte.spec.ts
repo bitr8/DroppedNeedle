@@ -30,12 +30,12 @@ describe('ConfirmModal', () => {
 		const onconfirm = vi.fn();
 		render(ConfirmModal, { open: true, title: 'Remove album?', onconfirm });
 		await page.getByRole('button', { name: 'Cancel' }).click();
-		await expect.element(page.getByRole('dialog')).not.toBeVisible();
+		await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
 
 		render(ConfirmModal, { open: true, title: 'Remove again?', onconfirm });
 		await expect.element(page.getByRole('dialog')).toBeVisible();
 		await userEvent.keyboard('{Escape}');
-		await expect.element(page.getByRole('dialog')).not.toBeVisible();
+		await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
 		expect(onconfirm).not.toHaveBeenCalled();
 	});
 

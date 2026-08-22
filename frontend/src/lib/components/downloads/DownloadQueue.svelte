@@ -154,7 +154,11 @@
 		{#if activeCount > 0}
 			<section class="space-y-3">
 				<h2 class="dl-eyebrow">Active <span class="dl-count">{activeCount}</span></h2>
-				{#if hero}<NowPressingHero task={hero} showEyebrow={false} />{/if}
+				{#if hero}
+					<div id="dl-{hero.id}" class={highlightClass(hero.id)}>
+						<NowPressingHero task={hero} showEyebrow={false} />
+					</div>
+				{/if}
 				{#each activeRest as task (task.id)}
 					<div id="dl-{task.id}" class={highlightClass(task.id)}>
 						<DownloadItem {task} />

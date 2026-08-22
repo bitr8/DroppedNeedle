@@ -13,6 +13,13 @@ vi.mock('$lib/components/library/LibraryDashboard.svelte', () => {
 	return { default: Comp };
 });
 
+// UserLibrary pulls in TanStack queries; stub it for the non-admin route-shell test.
+vi.mock('$lib/components/library/UserLibrary.svelte', () => {
+	const Comp = function () {};
+	Comp.prototype = {};
+	return { default: Comp };
+});
+
 import LibraryPage from './+page.svelte';
 
 function user(role: AuthUser['role']): AuthUser {
@@ -32,24 +39,18 @@ afterEach(() => authStore.clear());
 
 describe('library route page', () => {
 	it('renders the Library header and subtitle', async () => {
+		authStore.setUser(user('admin'));
 		render(LibraryPage);
 		await expect.element(page.getByRole('heading', { name: 'Library' })).toBeVisible();
 		await expect.element(page.getByText('Your scanned music library')).toBeVisible();
 	});
 
 	it('links Listen to the Listening Room', async () => {
+		authStore.setUser(user('admin'));
 		render(LibraryPage);
 		await expect
 			.element(page.getByRole('link', { name: 'Listen' }))
 			.toHaveAttribute('href', '/library/local');
-	});
-
-	it('points a non-admin to their own Profile for Connect Apps', async () => {
-		authStore.setUser(user('user'));
-		render(LibraryPage);
-		await expect
-			.element(page.getByRole('link', { name: 'Connect Apps' }))
-			.toHaveAttribute('href', '/profile#connect-apps');
 	});
 
 	it('points an admin to their Profile for Connect Apps', async () => {
@@ -68,14 +69,10 @@ describe('library route page', () => {
 			.toHaveAttribute('href', '/library/management');
 	});
 
-	it('keeps Controls visible but locked for non-administrators', async () => {
+	it('renders no admin controls for non-administrators', async () => {
 		authStore.setUser(user('user'));
 		render(LibraryPage);
-		const controls = page.getByRole('button', { name: 'Controls' });
-		await expect.element(controls).toHaveAttribute('aria-disabled', 'true');
-		await expect
-			.element(page.getByText('Library controls require administrator access.'))
-			.toBeInTheDocument();
 		await expect.element(page.getByRole('link', { name: 'Controls' })).not.toBeInTheDocument();
+		await expect.element(page.getByRole('button', { name: 'Controls' })).not.toBeInTheDocument();
 	});
 });

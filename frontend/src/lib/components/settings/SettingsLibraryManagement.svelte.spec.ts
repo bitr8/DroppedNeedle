@@ -1596,7 +1596,7 @@ describe('SettingsLibraryManagement', () => {
 
 		await expect.element(page.getByRole('status')).toHaveTextContent(/updates automatically/i);
 		await expect.element(page.getByText('1,500 files', { exact: true })).toBeVisible();
-		await expect.element(page.getByText('169 release bundles', { exact: true })).toBeVisible();
+		await expect.element(page.getByText('169 albums', { exact: true })).toBeVisible();
 		await expect.element(page.getByRole('button', { name: 'Use this dry run' })).toBeDisabled();
 		await expect
 			.element(page.getByRole('button', { name: 'Refresh status' }))
@@ -1708,7 +1708,7 @@ describe('SettingsLibraryManagement', () => {
 		await expect.element(page.getByText('Dry run interrupted', { exact: true })).toBeVisible();
 		await expect
 			.element(page.getByText(/files found/))
-			.toHaveTextContent(/1,500.*files found.*169.*release bundles/);
+			.toHaveTextContent(/1,500.*files found.*169.*albums/);
 	});
 
 	it('distinguishes queued work and can stop the durable dry run', async () => {
