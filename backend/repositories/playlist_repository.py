@@ -13,7 +13,7 @@ _UNSET = object()
 class PlaylistRecord:
     __slots__ = (
         "id", "name", "cover_image_path", "created_at", "updated_at",
-        "source_ref", "user_id", "is_public",
+        "source_ref", "user_id", "is_public", "spotify_snapshot_id",
     )
 
     def __init__(
@@ -26,6 +26,7 @@ class PlaylistRecord:
         source_ref: Optional[str] = None,
         user_id: Optional[str] = None,
         is_public: bool = False,
+        spotify_snapshot_id: Optional[str] = None,
     ):
         self.id = id
         self.name = name
@@ -35,6 +36,7 @@ class PlaylistRecord:
         self.source_ref = source_ref
         self.user_id = user_id
         self.is_public = is_public
+        self.spotify_snapshot_id = spotify_snapshot_id
 
 
 class PlaylistSummaryRecord:
@@ -242,6 +244,11 @@ class PlaylistRepository:
                 conn.commit()
             except sqlite3.OperationalError:
                 pass
+            try:
+                conn.execute("ALTER TABLE playlists ADD COLUMN spotify_snapshot_id TEXT")
+                conn.commit()
+            except sqlite3.OperationalError:
+                pass
             # Replace the GLOBAL source_ref uniqueness with a PER-USER one so two users
             # can each import the same source playlist without colliding (D4). SQLite
             # treats NULL as distinct in a unique index, so pre-backfill (NULL, source_ref)
@@ -316,6 +323,23 @@ class PlaylistRepository:
             ).fetchall()
         plen = len(prefix)
         return {row["source_ref"][plen:] for row in rows if row["source_ref"]}
+
+    def update_spotify_snapshot(self, playlist_id: str, snapshot_id: str) -> None:
+        with self._write_lock:
+            conn = self._get_connection()
+            now = datetime.now(timezone.utc).isoformat()
+            conn.execute(
+                "UPDATE playlists SET spotify_snapshot_id = ?, updated_at = ? WHERE id = ?",
+                (snapshot_id, now, playlist_id),
+            )
+            conn.commit()
+
+    def get_spotify_synced_playlists(self) -> list[PlaylistRecord]:
+        conn = self._get_connection()
+        rows = conn.execute(
+            "SELECT * FROM playlists WHERE source_ref LIKE 'spotify:%'"
+        ).fetchall()
+        return [self._row_to_playlist(r) for r in rows]
 
     def get_all_playlists(self, user_id: Optional[str] = None) -> list[PlaylistSummaryRecord]:
         conn = self._get_connection()
@@ -916,15 +940,17 @@ class PlaylistRepository:
 
     @staticmethod
     def _row_to_playlist(row: sqlite3.Row) -> PlaylistRecord:
+        keys = row.keys()
         return PlaylistRecord(
             id=row["id"],
             name=row["name"],
             cover_image_path=row["cover_image_path"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
-            source_ref=row["source_ref"] if "source_ref" in row.keys() else None,
-            user_id=row["user_id"] if "user_id" in row.keys() else None,
-            is_public=bool(row["is_public"]) if "is_public" in row.keys() else False,
+            source_ref=row["source_ref"] if "source_ref" in keys else None,
+            user_id=row["user_id"] if "user_id" in keys else None,
+            is_public=bool(row["is_public"]) if "is_public" in keys else False,
+            spotify_snapshot_id=row["spotify_snapshot_id"] if "spotify_snapshot_id" in keys else None,
         )
 
     @classmethod

@@ -16,6 +16,7 @@ export const getSpotifyPlaylistsQuery = () =>
 		staleTime: 5 * 60_000,
 		gcTime: 10 * 60_000,
 		refetchOnWindowFocus: false,
+		enabled: !!authStore.user?.id,
 		queryKey: SPOTIFY_PLAYLISTS_KEY(authStore.user?.id),
 		queryFn: () => api.global.get<SpotifyPlaylistListResponse>(API.me.spotifyPlaylists()),
 		retry: false

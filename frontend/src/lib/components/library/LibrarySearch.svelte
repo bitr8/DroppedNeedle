@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Search, X, Music2, Play, ArrowUpRight } from 'lucide-svelte';
-	import { fly, fade } from 'svelte/transition';
+	import { fly } from 'svelte/transition';
 	import { getLibrarySearchQuery } from '$lib/queries/library/LibraryQueries.svelte';
 	import AlbumImage from '$lib/components/AlbumImage.svelte';
 	import ArtistImage from '$lib/components/ArtistImage.svelte';
@@ -15,38 +15,12 @@
 	let inputEl = $state<HTMLInputElement>();
 	let rootEl = $state<HTMLElement>();
 
-	// rotating placeholder hints signal what's searchable; first entry doubles as the resting label
-	const HINTS = [
-		'Search your library - artists, albums, tracks',
-		"Try 'Radiohead'…",
-		"Try 'In Rainbows'…",
-		'Search a track…'
-	];
-	let hintIdx = $state(0);
-	let reduced = $state(false);
-	const hint = $derived(HINTS[hintIdx]);
+	const hint = 'Search your library - artists, albums, tracks';
 
-	// debounce so each keystroke doesn't fire three endpoints
 	$effect(() => {
 		const next = term;
 		const handle = setTimeout(() => (debounced = next.trim()), 180);
 		return () => clearTimeout(handle);
-	});
-
-	// track motion preference so the hint rotation freezes when the user prefers no motion
-	$effect(() => {
-		const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-		reduced = mq.matches;
-		const onChange = (e: MediaQueryListEvent) => (reduced = e.matches);
-		mq.addEventListener('change', onChange);
-		return () => mq.removeEventListener('change', onChange);
-	});
-
-	// cycle hints only while the bar is idle - pause once focused or typing so the rest text holds steady
-	$effect(() => {
-		if (reduced || focused || term) return;
-		const id = setInterval(() => (hintIdx = (hintIdx + 1) % HINTS.length), 2800);
-		return () => clearInterval(id);
 	});
 
 	const searchQuery = getLibrarySearchQuery(() => debounced);
@@ -133,16 +107,8 @@
 				<span class="min-w-0 flex-1">
 					<span class="relative block h-7 sm:h-8">
 						{#if !term}
-							<span class="pointer-events-none absolute inset-0" aria-hidden="true">
-								{#key hintIdx}
-									<span
-										in:fade={{ duration: 420 }}
-										out:fade={{ duration: 320 }}
-										class="absolute inset-0 flex items-center text-lg font-semibold text-base-content/40 sm:text-xl"
-									>
-										<span class="truncate">{hint}</span>
-									</span>
-								{/key}
+							<span class="pointer-events-none absolute inset-0 flex items-center text-lg font-semibold text-base-content/40 sm:text-xl" aria-hidden="true">
+								<span class="truncate">{hint}</span>
 							</span>
 						{/if}
 						<input

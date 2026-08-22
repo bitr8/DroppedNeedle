@@ -7,6 +7,7 @@
 	} from '$lib/queries/library/LibraryRepairQueries.svelte';
 	import { getLibraryPolicyTreeQuery } from '$lib/queries/library/LibraryPolicyQueries.svelte';
 	import { controlLibraryOperation } from '$lib/queries/library/LibraryOperationMutations.svelte';
+	import { toastStore } from '$lib/stores/toast';
 	import {
 		applyLibraryRepair,
 		createLibraryRepair
@@ -178,7 +179,7 @@
 											jobId: repair.id,
 											expectedRevision: repair.row_revision
 										})
-										.catch(() => undefined)}><CirclePause class="h-3.5 w-3.5" /> Pause</button
+										.catch(() => toastStore.show({ message: 'Failed to pause repair', type: 'error' }))}><CirclePause class="h-3.5 w-3.5" /> Pause</button
 							>{:else if repair.state === 'paused'}<button
 								class="btn btn-ghost btn-xs"
 								onclick={() =>
@@ -187,7 +188,7 @@
 											jobId: repair.id,
 											expectedRevision: repair.row_revision
 										})
-										.catch(() => undefined)}><CirclePlay class="h-3.5 w-3.5" /> Resume</button
+										.catch(() => toastStore.show({ message: 'Failed to resume repair', type: 'error' }))}><CirclePlay class="h-3.5 w-3.5" /> Resume</button
 							>{/if}
 						{#if repair.control_request === 'none' && ['queued', 'running', 'paused'].includes(repair.state)}<button
 								class="btn btn-ghost btn-xs text-error"
@@ -197,7 +198,7 @@
 											jobId: repair.id,
 											expectedRevision: repair.row_revision
 										})
-										.catch(() => undefined)}><OctagonX class="h-3.5 w-3.5" /> Stop</button
+										.catch(() => toastStore.show({ message: 'Failed to stop repair', type: 'error' }))}><OctagonX class="h-3.5 w-3.5" /> Stop</button
 							>{/if}
 						{#if repair.repair_summary}<button
 								class="btn btn-outline btn-xs"

@@ -75,12 +75,6 @@
 		};
 	});
 
-	$effect(() => {
-		if (reduced) return;
-		const id = setInterval(() => (cycle += 1), 4200);
-		return () => clearInterval(id);
-	});
-
 	function visibleWindow(n: number): number {
 		return Math.min(WINDOW, n);
 	}

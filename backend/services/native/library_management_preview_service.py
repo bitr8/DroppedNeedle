@@ -477,9 +477,12 @@ class LibraryManagementPreviewService:
         snapshot = await self._store.get_library_management_job_snapshot(job_id)
         if snapshot is None:
             raise ResourceNotFoundError("Library Management preview not found.")
-        token_hash = hashlib.sha256(request.preview_token.encode("utf-8")).hexdigest()
-        if not hmac.compare_digest(token_hash, snapshot.preview_token_hash or ""):
-            raise ValidationError("The Library Management preview token is invalid.")
+        if request.preview_token is not None:
+            token_hash = hashlib.sha256(request.preview_token.encode("utf-8")).hexdigest()
+            if not hmac.compare_digest(token_hash, snapshot.preview_token_hash or ""):
+                raise ValidationError("The Library Management preview token is invalid.")
+        else:
+            token_hash = snapshot.preview_token_hash or ""
         # ponytail: activation check removed — allow apply on activation previews
         if snapshot.phase == "ready":
             detail = await self.detail(job_id)
@@ -495,6 +498,24 @@ class LibraryManagementPreviewService:
             now=self._clock(),
         )
         return LibraryOperationService._response(row)
+
+    async def extend(
+        self,
+        job_id: str,
+        expected_job_revision: int,
+        hours: int,
+    ) -> LibraryManagementPreviewDetailResponse:
+        now = self._clock()
+        settings = await self._store.get_target_library_management_settings()
+        max_hours = settings.get("preview_retention_hours", 168) if settings else 168
+        clamped = min(max(1, hours), max_hours)
+        await self._store.extend_library_management_preview(
+            job_id,
+            new_expires_at=now + clamped * 3600,
+            expected_job_revision=expected_job_revision,
+            now=now,
+        )
+        return await self.detail(job_id)
 
     async def discard(
         self, job_id: str, request: LibraryManagementDiscardRequest

@@ -22,10 +22,10 @@
 	import { getLibrarySearchQuery } from '$lib/queries/library/LibraryQueries.svelte';
 	import { authStore } from '$lib/stores/authStore.svelte';
 	import { createLibraryManagementEvents } from '$lib/queries/library-management/LibraryManagementEvents';
-	import { LIBRARY_MANAGEMENT_CONFIRMATION_PHRASE } from '$lib/queries/library-management/LibraryManagementConfirmation';
 	import {
 		applyLibraryManagementPreviewMutation,
-		createLibraryManagementDuplicateResolutionMutation
+		createLibraryManagementDuplicateResolutionMutation,
+		extendLibraryManagementPreviewMutation
 	} from '$lib/queries/library-management/LibraryManagementMutations.svelte';
 	import {
 		getLibraryManagementPlanItemsQuery,
@@ -100,7 +100,6 @@
 	let hasPreservedValue = $state(false);
 	let hasRepresentationLoss = $state(false);
 	let previewToken = $derived(readLibraryManagementPreviewToken(jobId));
-	let confirmation = $state('');
 	let applyError = $state('');
 	let applyDialog: HTMLDialogElement;
 	let applyHeading: HTMLHeadingElement;
@@ -143,6 +142,7 @@
 		})
 	);
 	const applyPreview = applyLibraryManagementPreviewMutation();
+	const extendPreview = extendLibraryManagementPreviewMutation();
 	const createResolution = createLibraryManagementDuplicateResolutionMutation();
 
 	const preview = $derived(previewQuery.data ?? null);
@@ -210,8 +210,7 @@
 			!activationPreview &&
 			!preview.stale &&
 			!preview.expired &&
-			preview.summary.eligible_count + preview.summary.warning_count > 0 &&
-			previewToken
+			preview.summary.eligible_count + preview.summary.warning_count > 0
 		)
 	);
 	const recycleAvailable = $derived(Boolean(settingsQuery.data?.recycle_bin_path.trim()));
@@ -349,26 +348,19 @@
 
 	function openApply(opener: HTMLButtonElement): void {
 		applyOpener = opener;
-		confirmation = '';
 		applyError = '';
 		applyDialog.showModal();
 		applyHeading.focus();
 	}
 
 	async function apply(): Promise<void> {
-		if (
-			!preview ||
-			!previewToken ||
-			confirmation !== LIBRARY_MANAGEMENT_CONFIRMATION_PHRASE ||
-			!canApply
-		)
-			return;
+		if (!preview || !canApply) return;
 		applyError = '';
 		try {
 			const operation = await applyPreview.mutateAsync({
 				jobId,
 				request: {
-					preview_token: previewToken,
+					preview_token: previewToken ?? undefined,
 					expected_operation_row_revision: preview.operation_row_revision,
 					idempotency_key: createUuid(),
 					confirmation: true
@@ -494,16 +486,16 @@
 				<div class="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
 					<div class="management-summary-card">
 						<span class="text-xs text-base-content/50">Eligible to write</span><strong
-							>{preview.summary.eligible_count + preview.summary.warning_count}</strong
-						><small>{preview.summary.warning_count} with warnings</small>
+							>{preview.state === 'ready' || preview.summary.eligible_count > 0 ? preview.summary.eligible_count + preview.summary.warning_count : '—'}</strong
+						><small>{preview.state === 'ready' || preview.summary.eligible_count > 0 ? `${preview.summary.warning_count} with warnings` : 'Computing…'}</small>
 					</div>
 					<div class="management-summary-card">
 						<span class="text-xs text-base-content/50">Blocked / unchanged</span><strong
-							>{preview.summary.blocked_count} / {preview.summary.no_change_count}</strong
+							>{preview.state === 'ready' || preview.summary.eligible_count > 0 ? `${preview.summary.blocked_count} / ${preview.summary.no_change_count}` : '—'}</strong
 						><small>Never implicitly included</small>
 					</div>
 					<div class="management-summary-card">
-						<span class="text-xs text-base-content/50">Bundles / files</span><strong
+						<span class="text-xs text-base-content/50">Albums / files</span><strong
 							>{preview.summary.bundle_count} / {preview.summary.item_count}</strong
 						><small>{preview.summary.expanded_track_count} tracks added by expansion</small>
 					</div>
@@ -532,7 +524,19 @@
 					>
 					<span class="badge badge-outline"
 						><Clock3 class="h-3 w-3" /> Expires {formatDate(preview.expires_at)}</span
-					>
+					>{#if preview.ready_for_confirmation && !preview.expired}<button
+						class="badge badge-outline hover:badge-info cursor-pointer"
+						disabled={extendPreview.isPending}
+						onclick={() =>
+							void extendPreview.mutateAsync({
+								jobId,
+								request: {
+									expected_operation_row_revision: preview.operation_row_revision,
+									hours: 24
+								}
+							})}
+						>Keep 24h</button
+					>{/if}
 					<span class="badge badge-outline"><HardDrive class="h-3 w-3" /> {providerStatus}</span>
 				</div>
 			</header>
@@ -776,7 +780,7 @@
 					>{/if}
 			{/if}
 
-			{#if preview.state === 'ready'}
+			{#if preview.ready_for_confirmation || preview.state === 'ready'}
 				{#if activationPreview}<div
 						bind:this={stickyFooterElement}
 						class="management-apply-bar"
@@ -811,12 +815,6 @@
 							<div>
 								<strong>{applyAction.barTitle}</strong>
 								<p class="text-xs text-base-content/55">{applyAction.barDetail}</p>
-								{#if !previewToken && preview.ready_for_confirmation}<p
-										class="mt-1 text-xs text-warning"
-									>
-										The private apply token is not in this browser session. Generate a fresh preview
-										to apply.
-									</p>{/if}
 							</div>
 						</div>
 						<div class="flex flex-wrap items-center gap-1">
@@ -863,13 +861,7 @@
 			</div>
 		</div>
 		<p class="mt-4 text-sm text-base-content/65">{applyAction.detail}</p>
-		<label class="mt-4 grid gap-1 text-sm"
-			><span>Type <strong>{LIBRARY_MANAGEMENT_CONFIRMATION_PHRASE}</strong></span><input
-				class="input input-bordered bg-base-100 font-mono"
-				bind:value={confirmation}
-				autocomplete="off"
-			/></label
-		>
+		<p class="mt-2 text-xs text-base-content/45">Undo is available after completion.</p>
 		{#if applyError}<div class="alert alert-error mt-3 text-sm" role="alert">{applyError}</div>{/if}
 		<div class="modal-action">
 			<button
@@ -878,9 +870,7 @@
 				onclick={() => applyDialog.close()}>Cancel</button
 			><button
 				class="btn btn-warning"
-				disabled={!canApply ||
-					confirmation !== LIBRARY_MANAGEMENT_CONFIRMATION_PHRASE ||
-					applyPreview.isPending}
+				disabled={!canApply || applyPreview.isPending}
 				onclick={() => void apply()}
 				>{#if applyPreview.isPending}<span class="loading loading-spinner loading-sm"
 					></span>{/if}<CheckCircle2 class="h-4 w-4" />

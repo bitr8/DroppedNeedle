@@ -557,7 +557,7 @@ export interface LibraryManagementActivationConfirmRequest {
 }
 
 export interface LibraryManagementApplyRequest {
-	preview_token: string;
+	preview_token?: string;
 	expected_operation_row_revision: number;
 	idempotency_key: string;
 	confirmation?: boolean;

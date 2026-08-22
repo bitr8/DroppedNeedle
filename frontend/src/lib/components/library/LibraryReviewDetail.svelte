@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { AlertTriangle, Check, ExternalLink, History, Music2, XCircle } from 'lucide-svelte';
+	import { toastStore } from '$lib/stores/toast';
 	import AlbumImage from '$lib/components/AlbumImage.svelte';
 	import { getLibraryReviewQuery } from '$lib/queries/library/LibraryReviewQueries.svelte';
 	import {
@@ -273,7 +274,7 @@
 										disabled={accept.isPending}
 										onclick={(event) =>
 											candidate.automatic_safe
-												? void acceptCandidate(candidate, false).catch(() => undefined)
+												? void acceptCandidate(candidate, false).catch(() => toastStore.show({ message: 'Failed to accept candidate', type: 'error' }))
 												: openOverrideConfirmation(candidate, event)}
 										>{candidate.automatic_safe ? 'Use this release' : 'Use anyway...'}</button
 									>
@@ -340,7 +341,7 @@
 								if (request)
 									void keep
 										.mutateAsync({ reviewId: detail.review.id, body: request })
-										.catch(() => undefined);
+										.catch(() => toastStore.show({ message: 'Failed to keep as tagged', type: 'error' }));
 							}}><Check class="h-4 w-4" /> Keep as tagged</button
 						>{/if}
 					{#if detail.available_actions.includes('detach_keep_tagged')}<button
@@ -363,7 +364,7 @@
 								if (request)
 									void restore
 										.mutateAsync({ reviewId: detail.review.id, body: request })
-										.catch(() => undefined);
+										.catch(() => toastStore.show({ message: 'Failed to restore', type: 'error' }));
 							}}>Restore availability</button
 						>{/if}
 					{#if detail.available_actions.includes('dismiss')}<button
@@ -375,7 +376,7 @@
 								if (request)
 									void dismiss
 										.mutateAsync({ reviewId: detail.review.id, body: request })
-										.catch(() => undefined);
+										.catch(() => toastStore.show({ message: 'Failed to dismiss review', type: 'error' }));
 							}}>Dismiss</button
 						>{/if}
 					<button class="btn btn-ghost" onclick={() => dialog.close()}>Leave for later</button>

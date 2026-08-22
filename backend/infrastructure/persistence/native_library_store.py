@@ -19739,6 +19739,57 @@ class NativeLibraryStore(PersistenceBase):
 
         return await self._write(operation)
 
+    async def extend_library_management_preview(
+        self,
+        job_id: str,
+        *,
+        new_expires_at: float,
+        expected_job_revision: int,
+        now: float,
+    ) -> dict[str, Any]:
+        def operation(connection: sqlite3.Connection) -> dict[str, Any]:
+            job = connection.execute(
+                "SELECT * FROM library_operation_jobs WHERE id=? "
+                "AND kind='library_management'",
+                (job_id,),
+            ).fetchone()
+            if job is None:
+                raise ResourceNotFoundError("Library Management preview not found.")
+            if str(job["state"]) != "ready":
+                raise ValidationError("Only a ready preview can be extended.")
+            if int(job["row_revision"]) != expected_job_revision:
+                raise StaleRevisionError(
+                    "The Library Management preview changed before extend."
+                )
+            snapshot = connection.execute(
+                "SELECT phase FROM library_management_job_snapshots WHERE job_id=?",
+                (job_id,),
+            ).fetchone()
+            if snapshot is None or str(snapshot["phase"]) != "ready":
+                raise ValidationError("Only a ready preview can be extended.")
+            updated_snapshot = connection.execute(
+                "UPDATE library_management_job_snapshots SET "
+                "preview_expires_at=?, updated_at=?, row_revision=row_revision+1 "
+                "WHERE job_id=? AND phase='ready' AND row_revision < ? "
+                "RETURNING job_id",
+                (new_expires_at, now, job_id, MAX_REVISION),
+            ).fetchone()
+            if updated_snapshot is None:
+                raise StaleRevisionError("Preview changed during extend.")
+            updated_job = connection.execute(
+                "UPDATE library_operation_jobs SET updated_at=?, "
+                "row_revision=row_revision+1, event_revision=event_revision+1 "
+                "WHERE id=? AND row_revision < ? AND event_revision < ? "
+                "RETURNING *",
+                (now, job_id, MAX_REVISION, MAX_REVISION),
+            ).fetchone()
+            if updated_job is None:
+                raise StaleRevisionError("Preview changed during extend.")
+            self._bump_stream(connection, "operation")
+            return dict(updated_job)
+
+        return await self._write(operation)
+
     async def begin_library_management_apply(
         self,
         job_id: str,

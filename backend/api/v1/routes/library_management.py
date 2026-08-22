@@ -22,6 +22,7 @@ from api.v1.schemas.library_management_preview import (
     LibraryManagementBaselinePurgeRequest,
     LibraryManagementBaselinePurgeResponse,
     LibraryManagementDiscardRequest,
+    LibraryManagementExtendRequest,
     LibraryManagementDuplicateResolutionPreviewRequest,
     LibraryManagementOperationHistoryResponse,
     LibraryManagementPlanItemPageResponse,
@@ -511,6 +512,24 @@ async def discard_library_management_preview(
     ),
 ) -> LibraryManagementPreviewDetailResponse:
     return await service.discard(job_id, request)
+
+
+@router.post(
+    "/library/management/previews/{job_id}/extend",
+    response_model=LibraryManagementPreviewDetailResponse,
+)
+async def extend_library_management_preview(
+    job_id: str,
+    service: LibraryManagementPreviewServiceDep,
+    request: LibraryManagementExtendRequest = MsgSpecBody(
+        LibraryManagementExtendRequest
+    ),
+) -> LibraryManagementPreviewDetailResponse:
+    return await service.extend(
+        job_id,
+        expected_job_revision=request.expected_operation_row_revision,
+        hours=request.hours,
+    )
 
 
 @router.post(

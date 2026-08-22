@@ -206,6 +206,20 @@ export const discardLibraryManagementPreviewMutation = () =>
 		onError: showActionError('Could not discard this management preview')
 	}));
 
+export const extendLibraryManagementPreviewMutation = () =>
+	createMutation(() => ({
+		mutationFn: (input: {
+			jobId: string;
+			request: { expected_operation_row_revision: number; hours?: number };
+		}) =>
+			api.global.post<LibraryManagementPreviewDetailResponse>(
+				API.libraryManagement.extendPreview(input.jobId),
+				input.request
+			),
+		onSuccess: showQueued('Preview expiry extended'),
+		onError: showActionError('Could not extend this preview')
+	}));
+
 export const createLibraryManagementUndoPreviewMutation = () =>
 	createMutation(() => ({
 		mutationFn: (input: { jobId: string; request: LibraryManagementUndoPreviewRequest }) =>

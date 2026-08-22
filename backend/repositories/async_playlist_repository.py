@@ -35,6 +35,12 @@ class AsyncPlaylistRepository:
     async def get_imported_source_ids(self, prefix: str, user_id: str | None = None) -> set[str]:
         return await asyncio.to_thread(self._repo.get_imported_source_ids, prefix, user_id)
 
+    async def update_spotify_snapshot(self, playlist_id: str, snapshot_id: str) -> None:
+        await asyncio.to_thread(self._repo.update_spotify_snapshot, playlist_id, snapshot_id)
+
+    async def get_spotify_synced_playlists(self) -> list[PlaylistRecord]:
+        return await asyncio.to_thread(self._repo.get_spotify_synced_playlists)
+
     async def get_all_playlists(self, user_id: str | None = None) -> list[PlaylistSummaryRecord]:
         return await asyncio.to_thread(self._repo.get_all_playlists, user_id)
 

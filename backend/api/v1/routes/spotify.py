@@ -52,6 +52,11 @@ class SpotifyImportResponse(AppStruct):
     playlist_id: str
 
 
+class SpotifySyncResponse(AppStruct):
+    playlist_id: str
+    status: str
+
+
 async def _background_import(
     svc: SpotifyImportService,
     user_id: str,
@@ -198,3 +203,108 @@ async def import_spotify_playlist(
             pass
 
     return SpotifyImportResponse(playlist_id=playlist_id)
+
+
+async def _background_sync(
+    svc: SpotifyImportService,
+    user_id: str,
+    spotify_playlist_id: str,
+    playlist_id: str,
+    current_user: object,
+    playlist_service: PlaylistService,
+    local_service: LocalFilesService,
+) -> None:
+    try:
+        result = await svc.sync_playlist(user_id, spotify_playlist_id, playlist_id)
+        if result["status"] == "unchanged":
+            return
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"Background Spotify sync failed for playlist {playlist_id}: {exc}")
+        return
+    try:
+        jf_service = get_jellyfin_library_service()
+        nd_service = get_navidrome_library_service()
+        folder_resolution = await get_navidrome_folder_scope_service().resolve(user_id)
+        navidrome_folder_ids = (
+            None
+            if folder_resolution.scope.mode == "all"
+            else folder_resolution.scope.folder_ids
+        )
+        plex_service = get_plex_library_service()
+        sources_map = await playlist_service.resolve_track_sources(
+            playlist_id,
+            requesting=current_user,
+            jf_service=jf_service,
+            local_service=local_service,
+            nd_service=nd_service,
+            plex_service=plex_service,
+            navidrome_folder_ids=navidrome_folder_ids,
+        )
+        for track_id, sources in sources_map.items():
+            if not sources:
+                continue
+            best = next((s for s in _LINK_SOURCE_PRIORITY if s in sources), None)
+            if best:
+                try:
+                    await playlist_service.update_track_source(
+                        playlist_id,
+                        current_user,
+                        track_id,
+                        source_type=best,
+                        jf_service=jf_service,
+                        local_service=local_service,
+                        nd_service=nd_service,
+                        plex_service=plex_service,
+                        navidrome_folder_ids=navidrome_folder_ids,
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"Auto-link failed during sync for playlist {playlist_id}: {exc}")
+
+    try:
+        await get_sse_publisher().publish(
+            f"user:{user_id}",
+            "playlist_synced",
+            {"playlist_id": playlist_id, "event_id": uuid.uuid4().hex},
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"Failed to signal Spotify sync completion for {playlist_id}: {exc}")
+
+
+@router.post(
+    "/playlists/{spotify_playlist_id}/sync",
+    response_model=SpotifySyncResponse,
+)
+async def sync_spotify_playlist(
+    spotify_playlist_id: str,
+    current_user: CurrentUserDep = None,
+    svc: SpotifyImportService = Depends(get_spotify_import_service),
+    playlist_service: PlaylistService = Depends(get_playlist_service),
+    local_service: LocalFilesService = Depends(get_local_files_service),
+) -> SpotifySyncResponse:
+    source_ref = f"spotify:{spotify_playlist_id}"
+    existing = await playlist_service.get_by_source_ref(source_ref, current_user.id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="No imported playlist found for this Spotify playlist")
+
+    task_key = f"spotify:sync:{current_user.id}:{spotify_playlist_id}"
+    registry = TaskRegistry.get_instance()
+    if not registry.is_running(task_key):
+        task = asyncio.create_task(
+            _background_sync(
+                svc,
+                current_user.id,
+                spotify_playlist_id,
+                existing.id,
+                current_user,
+                playlist_service,
+                local_service,
+            )
+        )
+        try:
+            registry.register(task_key, task)
+        except RuntimeError:
+            pass
+
+    return SpotifySyncResponse(playlist_id=existing.id, status="syncing")

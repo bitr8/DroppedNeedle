@@ -42,6 +42,7 @@
 		startEditionConversion
 	} from '$lib/queries/library/EditionConversionQueries.svelte';
 	import { rememberLibraryManagementPreviewToken } from '$lib/queries/library-management/LibraryManagementPreviewTokens';
+	import { toastStore } from '$lib/stores/toast';
 
 	interface Props {
 		album: LibraryAlbumDetail;
@@ -394,7 +395,7 @@
 		event: MouseEvent & { currentTarget: HTMLButtonElement }
 	): void {
 		if (candidate.automatic_safe) {
-			void applyCandidate(candidate, false).catch(() => undefined);
+			void applyCandidate(candidate, false).catch(() => toastStore.show({ message: 'Failed to apply identity', type: 'error' }));
 			return;
 		}
 		confirmationOpener = event.currentTarget;
@@ -608,7 +609,7 @@
 						<button
 							class="btn btn-ghost btn-sm text-error"
 							disabled={conversionCancel.isPending}
-							onclick={() => void cancelConversion().catch(() => undefined)}
+							onclick={() => void cancelConversion().catch(() => toastStore.show({ message: 'Failed to cancel conversion', type: 'error' }))}
 							>Cancel conversion</button
 						>
 					{/if}
@@ -715,7 +716,7 @@
 								onclick={() =>
 									void stop
 										.mutateAsync({ jobId: job.id, expectedRevision: job.row_revision })
-										.catch(() => undefined)}
+										.catch(() => toastStore.show({ message: 'Failed to discard identification', type: 'error' }))}
 								aria-label="Discard identification evidence"
 							>
 								<OctagonX class="h-4 w-4" /> Discard
@@ -727,7 +728,7 @@
 								onclick={() =>
 									void pause
 										.mutateAsync({ jobId: job.id, expectedRevision: job.row_revision })
-										.catch(() => undefined)}
+										.catch(() => toastStore.show({ message: 'Failed to pause identification', type: 'error' }))}
 								aria-label="Pause identification"><CirclePause class="h-4 w-4" /> Pause</button
 							>
 						{:else if job.state === 'paused'}
@@ -736,7 +737,7 @@
 								onclick={() =>
 									void resume
 										.mutateAsync({ jobId: job.id, expectedRevision: job.row_revision })
-										.catch(() => undefined)}
+										.catch(() => toastStore.show({ message: 'Failed to resume identification', type: 'error' }))}
 								aria-label="Resume identification"><CirclePlay class="h-4 w-4" /> Resume</button
 							>
 						{/if}
@@ -746,7 +747,7 @@
 								onclick={() =>
 									void stop
 										.mutateAsync({ jobId: job.id, expectedRevision: job.row_revision })
-										.catch(() => undefined)}
+										.catch(() => toastStore.show({ message: 'Failed to stop identification', type: 'error' }))}
 								aria-label="Stop identification"><OctagonX class="h-4 w-4" /> Stop</button
 							>
 						{/if}
@@ -1063,7 +1064,7 @@
 											disabled={selectCandidate.isPending ||
 												!canSealCustomEdition(selectedCandidate)}
 											onclick={() =>
-												void createCustomEdition(selectedCandidate).catch(() => undefined)}
+												void createCustomEdition(selectedCandidate).catch(() => toastStore.show({ message: 'Failed to create custom edition', type: 'error' }))}
 											>Create Custom edition</button
 										>
 										{#if !canSealCustomEdition(selectedCandidate)}
@@ -1084,7 +1085,7 @@
 												conversionPreflight.isPending ||
 												Boolean(conversion)}
 											onclick={() =>
-												void prepareEditionConversion(selectedCandidate).catch(() => undefined)}
+												void prepareEditionConversion(selectedCandidate).catch(() => toastStore.show({ message: 'Failed to prepare conversion', type: 'error' }))}
 											>Prepare conversion</button
 										>
 									</article>
@@ -1098,7 +1099,7 @@
 										<button
 											class="btn btn-ghost btn-sm"
 											disabled={selectCandidate.isPending}
-											onclick={() => void leaveUnmanaged(selectedCandidate).catch(() => undefined)}
+											onclick={() => void leaveUnmanaged(selectedCandidate).catch(() => toastStore.show({ message: 'Failed to leave unmanaged', type: 'error' }))}
 											>Leave unmanaged</button
 										>
 									</article>
@@ -1147,7 +1148,7 @@
 							<button
 								class="btn btn-outline btn-sm"
 								disabled={selectCandidate.isPending}
-								onclick={() => void leaveUnmanagedWithoutCandidate().catch(() => undefined)}
+								onclick={() => void leaveUnmanagedWithoutCandidate().catch(() => toastStore.show({ message: 'Failed to leave unmanaged', type: 'error' }))}
 								>Leave unmanaged</button
 							>
 							<p class="text-xs text-base-content/50">

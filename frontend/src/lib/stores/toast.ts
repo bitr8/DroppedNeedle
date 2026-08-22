@@ -2,19 +2,24 @@ import { writable } from 'svelte/store';
 
 interface Toast {
 	message: string;
-	type: 'success' | 'error' | 'info';
+	type: 'success' | 'error' | 'info' | 'warning';
 	duration?: number;
 }
 
 function createToastStore() {
 	const { subscribe, set } = writable<Toast | null>(null);
+	let timer: ReturnType<typeof setTimeout> | undefined;
 	return {
 		subscribe,
 		show: (toast: Toast) => {
+			clearTimeout(timer);
 			set(toast);
-			setTimeout(() => set(null), toast.duration ?? 3000);
+			timer = setTimeout(() => set(null), toast.duration ?? 3000);
 		},
-		hide: () => set(null)
+		hide: () => {
+			clearTimeout(timer);
+			set(null);
+		}
 	};
 }
 

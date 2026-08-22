@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { toastStore } from '$lib/stores/toast';
 	import { onMount } from 'svelte';
 	import {
 		AlertTriangle,
@@ -209,7 +210,7 @@
 		const mutation = action === 'pause' ? pauseOperation : resumeOperation;
 		await mutation
 			.mutateAsync({ jobId, expectedRevision: operation.operation_row_revision })
-			.catch(() => undefined);
+			.catch(() => toastStore.show({ message: `Failed to ${action} operation`, type: 'error' }));
 	}
 
 	async function stop(): Promise<void> {

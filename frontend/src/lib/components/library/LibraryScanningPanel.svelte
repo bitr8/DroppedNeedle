@@ -12,6 +12,7 @@
 		ShieldAlert
 	} from 'lucide-svelte';
 	import { authStore } from '$lib/stores/authStore.svelte';
+	import { toastStore } from '$lib/stores/toast';
 	import { getLibraryActivityQuery } from '$lib/queries/library/LibraryActivityQueries.svelte';
 	import {
 		getCurrentLibraryRunsQuery,
@@ -258,7 +259,7 @@
 										runId: activeRun.id,
 										expectedRevision: activeRun.row_revision
 									})
-									.catch(() => undefined)}
+									.catch(() => toastStore.show({ message: 'Failed to resume scan', type: 'error' }))}
 							aria-label="Resume local scan"><CirclePlay class="h-4 w-4" /> Resume</button
 						>
 					{:else if activeRun && !['pausing', 'stopping'].includes(activeRun.state)}
@@ -271,7 +272,7 @@
 										runId: activeRun.id,
 										expectedRevision: activeRun.row_revision
 									})
-									.catch(() => undefined)}
+									.catch(() => toastStore.show({ message: 'Failed to pause scan', type: 'error' }))}
 							aria-label="Pause local scan"><CirclePause class="h-4 w-4" /> Pause</button
 						>
 					{/if}
@@ -397,7 +398,7 @@
 							onclick={() =>
 								void resumeIdentification
 									.mutateAsync(identification.control_revision ?? 0)
-									.catch(() => undefined)}
+									.catch(() => toastStore.show({ message: 'Failed to resume identification', type: 'error' }))}
 							aria-label="Resume identification"><CirclePlay class="h-4 w-4" /> Resume</button
 						>{:else if identification?.waiting_count && identification.control_revision}<button
 							class="btn btn-outline btn-sm"
@@ -405,7 +406,7 @@
 							onclick={() =>
 								void pauseIdentification
 									.mutateAsync(identification.control_revision ?? 0)
-									.catch(() => undefined)}
+									.catch(() => toastStore.show({ message: 'Failed to pause identification', type: 'error' }))}
 							aria-label="Pause identification"
 							><CirclePause class="h-4 w-4" />
 							{identification.state === 'pausing' ? 'Pausing...' : 'Pause'}</button
@@ -441,7 +442,7 @@
 						</div>
 						<div>
 							<span class="block text-xs text-base-content/50">Needs review</span><strong
-								>{(identification?.needs_review_count ?? reviewCount).toLocaleString()}</strong
+								>{reviewCount.toLocaleString()}</strong
 							>
 						</div>
 						<div>

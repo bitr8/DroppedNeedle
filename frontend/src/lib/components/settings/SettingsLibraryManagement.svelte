@@ -25,6 +25,7 @@
 	import LibraryManagementProfileEditor from './LibraryManagementProfileEditor.svelte';
 	import LibraryManagementProfileSharing from './LibraryManagementProfileSharing.svelte';
 	import { authStore } from '$lib/stores/authStore.svelte';
+	import { toastStore } from '$lib/stores/toast';
 	import {
 		forgetLibraryManagementActivationSession,
 		readLibraryManagementActivationSession,
@@ -677,7 +678,7 @@
 		}
 		const proposed = $state.snapshot(draft);
 		resetActivationSession();
-		await reviewAndSave(proposed, opener).catch(() => undefined);
+		await reviewAndSave(proposed, opener).catch(() => toastStore.show({ message: 'Failed to save settings', type: 'error' }));
 	}
 
 	function showActivationDialog(opener: HTMLButtonElement | null): void {
@@ -778,7 +779,7 @@
 
 	function saveDraft(event: MouseEvent & { currentTarget: HTMLButtonElement }): void {
 		if (!draft) return;
-		void reviewAndSave($state.snapshot(draft), event.currentTarget).catch(() => undefined);
+		void reviewAndSave($state.snapshot(draft), event.currentTarget).catch(() => toastStore.show({ message: 'Failed to save settings', type: 'error' }));
 	}
 
 	onMount(() => {
@@ -1371,8 +1372,8 @@
 								{#if (activationQuery.data?.summary.item_count ?? 0) > 0}
 									· {(activationQuery.data?.summary.item_count ?? 0).toLocaleString()}
 									files found · {(activationQuery.data?.summary.bundle_count ?? 0).toLocaleString()}
-									release bundles{:else}
-									· Discovering files and release bundles{/if}{:else}Every required dry run is
+									albums{:else}
+									· Discovering files and albums{/if}{:else}Every required dry run is
 								accepted. Automatic writes are still off.{/if}
 						</p>
 					</div>
@@ -1420,7 +1421,7 @@
 								'This root'} · {remoteActivation.profile_name} · {remoteActivation.operation
 								.state === 'ready'
 								? 'Ready to review'
-								: 'Discovering files and release bundles'}
+								: 'Discovering files and albums'}
 						</p>
 					</div>
 					<a
@@ -1562,7 +1563,7 @@
 								>{(activationQuery.data.summary.item_count ?? 0).toLocaleString()} files</span
 							>
 							<span class="text-sm text-base-content/55"
-								>{(activationQuery.data.summary.bundle_count ?? 0).toLocaleString()} release bundles</span
+								>{(activationQuery.data.summary.bundle_count ?? 0).toLocaleString()} albums</span
 							>
 						</div>{:else if !activationReady}<div
 							class="mt-4 flex items-center gap-3 rounded-lg border border-library-manage/20 bg-library-manage/5 px-3.5 py-3 text-sm text-base-content/60"

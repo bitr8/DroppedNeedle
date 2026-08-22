@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { AlertTriangle, CirclePause, CirclePlay, FolderTree, OctagonX } from 'lucide-svelte';
 	import { authStore } from '$lib/stores/authStore.svelte';
+	import { toastStore } from '$lib/stores/toast';
 	import { getLibraryPolicyTreeQuery } from '$lib/queries/library/LibraryPolicyQueries.svelte';
 	import {
 		getLibraryOperationQuery,
@@ -325,20 +326,20 @@
 							onclick={() =>
 								void pause
 									.mutateAsync({ jobId: job.id, expectedRevision: job.row_revision })
-									.catch(() => undefined)}><CirclePause class="h-4 w-4" /> Pause</button
+									.catch(() => toastStore.show({ message: 'Failed to pause retry', type: 'error' }))}><CirclePause class="h-4 w-4" /> Pause</button
 						>{:else if job.state === 'paused'}<button
 							class="btn btn-ghost btn-sm"
 							onclick={() =>
 								void resume
 									.mutateAsync({ jobId: job.id, expectedRevision: job.row_revision })
-									.catch(() => undefined)}><CirclePlay class="h-4 w-4" /> Resume</button
+									.catch(() => toastStore.show({ message: 'Failed to resume retry', type: 'error' }))}><CirclePlay class="h-4 w-4" /> Resume</button
 						>{/if}
 					{#if ['queued', 'running', 'paused'].includes(job.state)}<button
 							class="btn btn-ghost btn-sm text-error"
 							onclick={() =>
 								void stop
 									.mutateAsync({ jobId: job.id, expectedRevision: job.row_revision })
-									.catch(() => undefined)}><OctagonX class="h-4 w-4" /> Stop</button
+									.catch(() => toastStore.show({ message: 'Failed to stop retry', type: 'error' }))}><OctagonX class="h-4 w-4" /> Stop</button
 						>{/if}
 				</div>
 				<progress

@@ -121,7 +121,7 @@ class SpotifyImportService:
     ) -> None:
         client = await self._get_client(user_id)
 
-        _pl_info, raw_tracks = await asyncio.gather(
+        pl_info, raw_tracks = await asyncio.gather(
             client.get_playlist(spotify_playlist_id),
             client.get_playlist_tracks(spotify_playlist_id),
         )
@@ -162,9 +162,57 @@ class SpotifyImportService:
             )
 
         await self._async_repo.add_tracks(playlist_id, track_dicts)
+
+        snapshot_id = pl_info.get("snapshot_id")
+        if snapshot_id:
+            await self._async_repo.update_spotify_snapshot(playlist_id, snapshot_id)
+
         logger.info(
             f"Imported Spotify playlist {spotify_playlist_id} - internal {playlist_id} ({len(track_dicts)} tracks)"
         )
+
+    async def sync_playlist(
+        self, user_id: str, spotify_playlist_id: str, playlist_id: str
+    ) -> dict:
+        """Re-sync if Spotify's snapshot changed. Returns sync result summary."""
+        client = await self._get_client(user_id)
+        pl_info = await client.get_playlist(spotify_playlist_id)
+        remote_snapshot = pl_info.get("snapshot_id") or ""
+
+        playlist = await self._async_repo.get_playlist(playlist_id)
+        local_snapshot = playlist.spotify_snapshot_id if playlist else None
+
+        if remote_snapshot and remote_snapshot == local_snapshot:
+            return {"status": "unchanged", "playlist_id": playlist_id}
+
+        # ponytail: full replace for now, diff sync when this is too slow
+        await self.populate_playlist(user_id, spotify_playlist_id, playlist_id)
+        return {
+            "status": "synced",
+            "playlist_id": playlist_id,
+            "snapshot_id": remote_snapshot,
+        }
+
+    async def check_all_synced_playlists(self) -> list[dict]:
+        """Check all Spotify-linked playlists and sync any that changed."""
+        playlists = await self._async_repo.get_spotify_synced_playlists()
+        results = []
+        # ponytail: sequential per-user, parallel users when throughput matters
+        for pl in playlists:
+            if not pl.source_ref or not pl.user_id:
+                continue
+            spotify_id = pl.source_ref.removeprefix("spotify:")
+            if not spotify_id:
+                continue
+            try:
+                result = await self.sync_playlist(pl.user_id, spotify_id, pl.id)
+                results.append({**result, "name": pl.name})
+            except SpotifyNotLinkedError:
+                logger.debug(f"Skipping sync for {pl.name}: Spotify not linked for user {pl.user_id}")
+            except Exception:
+                logger.exception(f"Sync failed for playlist {pl.name} ({pl.id})")
+                results.append({"status": "error", "playlist_id": pl.id, "name": pl.name})
+        return results
 
     async def _resolve_album_mbids(
         self, raw_tracks: list[dict]

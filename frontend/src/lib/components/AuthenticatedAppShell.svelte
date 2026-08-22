@@ -13,6 +13,7 @@
 	import { playerStore } from '$lib/stores/player.svelte';
 	import { launchYouTubePlayback } from '$lib/player/launchYouTubePlayback';
 	import { playbackToast } from '$lib/stores/playbackToast.svelte';
+	import { toastStore } from '$lib/stores/toast';
 	import { scrobbleManager } from '$lib/stores/scrobble.svelte';
 	import { imageSettingsStore } from '$lib/stores/imageSettings';
 	import { serviceStatusStore } from '$lib/stores/serviceStatus';
@@ -58,6 +59,7 @@
 		TriangleAlert,
 		Info,
 		X,
+		Check,
 		UserRound,
 		Inbox,
 		ListMusic,
@@ -359,6 +361,7 @@
 	}
 
 	const integrations = fromStore(integrationStore);
+	const globalToast = fromStore(toastStore);
 	const downloadClientConfigured = $derived(
 		integrations.current.download_client || !integrations.current.loaded
 	);
@@ -370,8 +373,10 @@
 	</div>
 {/if}
 
-<DegradedBanner />
-<VersionOverlays bind:updateAvailable={versionUpdateAvailable} />
+{#if authStore.isAdmin}
+	<DegradedBanner />
+	<VersionOverlays bind:updateAvailable={versionUpdateAvailable} />
+{/if}
 
 <div class="drawer md:drawer-open">
 	<input id="main-drawer" type="checkbox" class="drawer-toggle" />
@@ -412,7 +417,9 @@
 			</div>
 		</div>
 
-		<LibraryActivityStrip />
+		{#if authStore.isAdmin}
+			<LibraryActivityStrip />
+		{/if}
 
 		<div
 			class="droppedneedle-main-content flex-1"
@@ -514,20 +521,18 @@
 					</a>
 				</li>
 
-				{#if downloadClientConfigured}
-					<li>
-						<a
-							href="/playlists"
-							class="is-drawer-close:tooltip is-drawer-close:tooltip-right"
-							class:menu-active={isNavActive('/playlists')}
-							aria-current={isNavActive('/playlists') ? 'page' : undefined}
-							data-tip="Playlists"
-						>
-							<ListMusic class="h-6 w-6" />
-							<span class="is-drawer-close:hidden">Playlists</span>
-						</a>
-					</li>
-				{/if}
+				<li>
+					<a
+						href="/playlists"
+						class="is-drawer-close:tooltip is-drawer-close:tooltip-right"
+						class:menu-active={isNavActive('/playlists')}
+						aria-current={isNavActive('/playlists') ? 'page' : undefined}
+						data-tip="Playlists"
+					>
+						<ListMusic class="h-6 w-6" />
+						<span class="is-drawer-close:hidden">Playlists</span>
+					</a>
+				</li>
 
 				<SidebarServices />
 
@@ -794,14 +799,54 @@
 	</div>
 {/if}
 
+{#if globalToast.current}
+	{@const t = globalToast.current}
+	<div
+		class="fixed z-50 bottom-6 right-6 transition-all duration-300"
+		class:bottom-24={playerStore.isPlayerVisible}
+	>
+		<div
+			class="alert {t.type === 'success'
+				? 'alert-success'
+				: t.type === 'error'
+					? 'alert-error'
+					: t.type === 'warning'
+						? 'alert-warning'
+						: 'alert-info'} shadow-lg px-4 py-2 min-w-64 max-w-md"
+			role={t.type === 'error' ? 'alert' : 'status'}
+			aria-live={t.type === 'error' ? 'assertive' : 'polite'}
+		>
+			{#if t.type === 'success'}
+				<Check class="h-5 w-5 shrink-0" />
+			{:else if t.type === 'error'}
+				<X class="h-5 w-5 shrink-0" />
+			{:else if t.type === 'warning'}
+				<TriangleAlert class="h-5 w-5 shrink-0" />
+			{:else}
+				<Info class="h-5 w-5 shrink-0" />
+			{/if}
+			<span class="text-sm">{t.message}</span>
+			<button
+				class="btn btn-ghost btn-xs btn-circle"
+				onclick={() => toastStore.hide()}
+				aria-label="Dismiss"
+			>
+				<X class="h-3.5 w-3.5" />
+			</button>
+		</div>
+	</div>
+{/if}
+
 {#if browser}
 	<audio bind:this={audioElement}></audio>
 {/if}
 
 <Player />
 <PreviewWidget />
-<CacheSyncIndicator />
-<BatchDownloadIndicator />
+{#if authStore.isAdmin}
+	<CacheSyncIndicator />
+	<BatchDownloadIndicator />
+{/if}
 {#if DiscographyModal}
 	<DiscographyModal />
 {/if}

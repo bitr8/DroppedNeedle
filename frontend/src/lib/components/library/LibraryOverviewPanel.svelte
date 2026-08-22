@@ -17,6 +17,7 @@
 	import { onMount } from 'svelte';
 
 	import { authStore } from '$lib/stores/authStore.svelte';
+	import { toastStore } from '$lib/stores/toast';
 	import { getLibraryActivityQuery } from '$lib/queries/library/LibraryActivityQueries.svelte';
 	import { getLibraryRunHistoryQuery } from '$lib/queries/library/LibraryOperationQueries.svelte';
 	import { requestLibraryRun } from '$lib/queries/library/LibraryOperationMutations.svelte';
@@ -187,7 +188,7 @@
 				scope_ids: [],
 				expected_policy_revision: policyRevision
 			})
-			.catch(() => undefined);
+			.catch(() => toastStore.show({ message: 'Failed to start scan', type: 'error' }));
 	}
 </script>
 

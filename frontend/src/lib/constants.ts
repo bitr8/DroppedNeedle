@@ -499,6 +499,8 @@ export const API = {
 			`/api/v1/library/management/previews/${encodeURIComponent(jobId)}/apply`,
 		discardPreview: (jobId: string) =>
 			`/api/v1/library/management/previews/${encodeURIComponent(jobId)}/discard`,
+		extendPreview: (jobId: string) =>
+			`/api/v1/library/management/previews/${encodeURIComponent(jobId)}/extend`,
 		operations: (
 			params: {
 				limit?: number;

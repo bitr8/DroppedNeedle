@@ -148,7 +148,7 @@ class SpotifyClient:
     async def get_playlist(self, playlist_id: str) -> dict:
         return await self._get(
             f"/playlists/{playlist_id}",
-            params={"fields": "id,name,images,tracks.total"},
+            params={"fields": "id,name,images,tracks.total,snapshot_id"},
         )
 
     async def get_playlist_tracks(self, playlist_id: str) -> list[dict]:

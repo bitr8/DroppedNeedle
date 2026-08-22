@@ -110,14 +110,19 @@ class LibraryManagementTagEditorContextResponse(AppStruct):
 
 
 class LibraryManagementApplyRequest(AppStruct):
-    preview_token: str
+    preview_token: str | None = None
     expected_operation_row_revision: int
     idempotency_key: str
-    confirmation: bool = False
+    confirmation: bool = True
 
 
 class LibraryManagementDiscardRequest(AppStruct):
     expected_operation_row_revision: int
+
+
+class LibraryManagementExtendRequest(AppStruct):
+    expected_operation_row_revision: int
+    hours: int = 24
 
 
 class LibraryManagementUndoPreviewRequest(AppStruct):

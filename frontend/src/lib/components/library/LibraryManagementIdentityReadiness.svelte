@@ -13,6 +13,7 @@
 	import AlbumImage from '$lib/components/AlbumImage.svelte';
 	import IdentityFindingEditionButton from './IdentityFindingEditionButton.svelte';
 	import { authStore } from '$lib/stores/authStore.svelte';
+	import { toastStore } from '$lib/stores/toast';
 	import { controlLibraryOperation } from '$lib/queries/library/LibraryOperationMutations.svelte';
 	import {
 		applyLibraryIdentityPreparation,
@@ -293,7 +294,7 @@
 						onclick={() =>
 							void pause
 								.mutateAsync({ jobId: active.id, expectedRevision: active.row_revision })
-								.catch(() => undefined)}><CirclePause class="h-3.5 w-3.5" /> Pause</button
+								.catch(() => toastStore.show({ message: 'Failed to pause identity check', type: 'error' }))}><CirclePause class="h-3.5 w-3.5" /> Pause</button
 					>
 				{:else if active.state === 'paused'}
 					<button
@@ -301,7 +302,7 @@
 						onclick={() =>
 							void resume
 								.mutateAsync({ jobId: active.id, expectedRevision: active.row_revision })
-								.catch(() => undefined)}><CirclePlay class="h-3.5 w-3.5" /> Resume</button
+								.catch(() => toastStore.show({ message: 'Failed to resume identity check', type: 'error' }))}><CirclePlay class="h-3.5 w-3.5" /> Resume</button
 					>
 				{/if}
 				<button
@@ -310,7 +311,7 @@
 					onclick={() =>
 						void stop
 							.mutateAsync({ jobId: active.id, expectedRevision: active.row_revision })
-							.catch(() => undefined)}><OctagonX class="h-3.5 w-3.5" /> Stop</button
+							.catch(() => toastStore.show({ message: 'Failed to stop identity check', type: 'error' }))}><OctagonX class="h-3.5 w-3.5" /> Stop</button
 				>
 			</div>
 		</div>

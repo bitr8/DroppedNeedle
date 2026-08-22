@@ -5,7 +5,7 @@ const phaseLabels: Record<string, string> = {
 	indexing: 'Reading file metadata',
 	reconciling: 'Finalizing the catalog',
 	identifying_albums: 'Matching albums with MusicBrainz',
-	planning: 'Inspecting files and release bundles',
+	planning: 'Inspecting files and albums',
 	ready: 'Ready for review',
 	applying: 'Applying planned changes',
 	undoing: 'Restoring the previous file state',
