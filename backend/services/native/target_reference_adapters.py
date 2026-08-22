@@ -110,6 +110,12 @@ def _playlist_record(row: dict[str, Any]) -> PlaylistRecord:
         source_ref=row.get("source_ref"),
         user_id=row.get("user_id"),
         is_public=bool(row.get("is_public")),
+        spotify_snapshot_id=row.get("spotify_snapshot_id"),
+        spotify_synced_at=row.get("spotify_synced_at"),
+        spotify_sync_status=row.get("spotify_sync_status"),
+        spotify_sync_error=row.get("spotify_sync_error"),
+        spotify_missing_count=int(row.get("spotify_missing_count") or 0),
+        spotify_synced_track_hash=row.get("spotify_synced_track_hash"),
     )
 
 
@@ -211,6 +217,9 @@ class TargetPlaylistRepository:
                 source_ref=row.get("source_ref"),
                 user_id=row.get("user_id"),
                 is_public=bool(row.get("is_public")),
+                spotify_sync_status=row.get("spotify_sync_status"),
+                spotify_synced_at=row.get("spotify_synced_at"),
+                spotify_missing_count=int(row.get("spotify_missing_count") or 0),
             )
             for row in rows
         ]
@@ -335,6 +344,50 @@ class TargetPlaylistRepository:
         self, tracks: list[tuple[str, str, str]], user_id: str | None = None
     ) -> dict[str, list[int]]:
         return await self._store.target_playlist_membership(tracks, user_id)
+
+    async def update_spotify_snapshot(self, playlist_id: str, snapshot_id: str) -> None:
+        await self._store.update_target_playlist_spotify_state(
+            playlist_id, {"spotify_snapshot_id": snapshot_id}, self._now()
+        )
+
+    async def set_spotify_sync_state(
+        self,
+        playlist_id: str,
+        status: str,
+        snapshot_id: str | None = _UNSET,
+        synced_at: str | None = _UNSET,
+        error: str | None = _UNSET,
+        missing_count: int | None = None,
+        track_hash: str | None = _UNSET,
+    ) -> None:
+        assignments: dict[str, Any] = {"spotify_sync_status": status}
+        for column, value in (
+            ("spotify_snapshot_id", snapshot_id),
+            ("spotify_synced_at", synced_at),
+            ("spotify_sync_error", error),
+            ("spotify_synced_track_hash", track_hash),
+        ):
+            if value is not _UNSET:
+                assignments[column] = value
+        if missing_count is not None:
+            assignments["spotify_missing_count"] = missing_count
+        await self._store.update_target_playlist_spotify_state(
+            playlist_id, assignments, None
+        )
+
+    async def detach_spotify(self, playlist_id: str) -> bool:
+        return await self._store.detach_target_playlist_spotify(
+            playlist_id, self._now()
+        )
+
+    async def get_spotify_synced_playlists(self) -> list[PlaylistRecord]:
+        return [
+            _playlist_record(row)
+            for row in await self._store.list_target_spotify_playlists()
+        ]
+
+    async def count_unresolved_tracks(self, playlist_id: str) -> int:
+        return await self._store.count_target_playlist_unresolved_tracks(playlist_id)
 
 
 class TargetFavoritesStore:

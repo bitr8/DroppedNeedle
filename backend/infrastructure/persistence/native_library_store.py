@@ -1255,6 +1255,12 @@ class NativeLibraryStore(PersistenceBase):
                 "ALTER TABLE library_management_import_journal ADD COLUMN baseline_file_mode INTEGER",
                 "ALTER TABLE library_operation_jobs ADD COLUMN next_attempt_at REAL",
                 "ALTER TABLE library_identification_jobs ADD COLUMN attention_cause TEXT",
+                "ALTER TABLE library_playlists ADD COLUMN spotify_snapshot_id TEXT",
+                "ALTER TABLE library_playlists ADD COLUMN spotify_synced_at TEXT",
+                "ALTER TABLE library_playlists ADD COLUMN spotify_sync_status TEXT",
+                "ALTER TABLE library_playlists ADD COLUMN spotify_sync_error TEXT",
+                "ALTER TABLE library_playlists ADD COLUMN spotify_missing_count INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE library_playlists ADD COLUMN spotify_synced_track_hash TEXT",
             ):
                 try:
                     connection.execute(statement)
@@ -4264,6 +4270,70 @@ class NativeLibraryStore(PersistenceBase):
         if result is not None:
             await self._invalidate()
         return result
+
+    async def update_target_playlist_spotify_state(
+        self, playlist_id: str, assignments: dict[str, Any], changed_at: str | None
+    ) -> None:
+        def operation(connection: sqlite3.Connection) -> None:
+            columns = dict(assignments)
+            if changed_at is not None:
+                columns["updated_at"] = changed_at
+            clause = ", ".join(f"{column} = ?" for column in columns)
+            connection.execute(
+                f"UPDATE library_playlists SET {clause} WHERE id = ?",
+                (*columns.values(), playlist_id),
+            )
+
+        await self._write(operation)
+        await self._invalidate()
+
+    async def detach_target_playlist_spotify(
+        self, playlist_id: str, changed_at: str
+    ) -> bool:
+        def operation(connection: sqlite3.Connection) -> bool:
+            return (
+                connection.execute(
+                    "UPDATE library_playlists SET source_ref = NULL, "
+                    "spotify_snapshot_id = NULL, spotify_sync_error = NULL, "
+                    "spotify_synced_track_hash = NULL, "
+                    "spotify_sync_status = 'detached', updated_at = ? "
+                    "WHERE id = ? AND source_ref LIKE 'spotify:%'",
+                    (changed_at, playlist_id),
+                ).rowcount
+                > 0
+            )
+
+        detached = await self._write(operation)
+        if detached:
+            await self._invalidate()
+        return detached
+
+    async def list_target_spotify_playlists(self) -> list[dict[str, Any]]:
+        def operation(connection: sqlite3.Connection) -> list[dict[str, Any]]:
+            return [
+                dict(row)
+                for row in connection.execute(
+                    "SELECT * FROM library_playlists "
+                    "WHERE source_ref LIKE 'spotify:%' ORDER BY id"
+                ).fetchall()
+            ]
+
+        return await self._read(operation)
+
+    async def count_target_playlist_unresolved_tracks(self, playlist_id: str) -> int:
+        def operation(connection: sqlite3.Connection) -> int:
+            return int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM library_playlist_tracks "
+                    "WHERE playlist_id = ? AND local_track_id IS NULL "
+                    "AND COALESCE(source_type, '') = '' "
+                    "AND COALESCE(library_file_id, '') = '' "
+                    "AND COALESCE(available_sources, '[]') IN ('', '[]')",
+                    (playlist_id,),
+                ).fetchone()[0]
+            )
+
+        return await self._read(operation)
 
     async def delete_target_playlist(self, playlist_id: str) -> bool:
         def operation(connection: sqlite3.Connection) -> bool:
