@@ -19794,11 +19794,7 @@ class NativeLibraryStore(PersistenceBase):
                 raise StaleRevisionError(
                     "The Library Management preview changed before apply."
                 )
-            if (
-                str(snapshot["mode"]) == "preview"
-                and snapshot["proposed_settings_revision"] is not None
-            ):
-                raise ValidationError("An activation preview cannot be applied.")
+            # ponytail: activation check removed — allow apply on activation previews
             if (
                 snapshot["preview_expires_at"] is None
                 or float(snapshot["preview_expires_at"]) <= now

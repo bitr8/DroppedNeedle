@@ -480,8 +480,7 @@ class LibraryManagementPreviewService:
         token_hash = hashlib.sha256(request.preview_token.encode("utf-8")).hexdigest()
         if not hmac.compare_digest(token_hash, snapshot.preview_token_hash or ""):
             raise ValidationError("The Library Management preview token is invalid.")
-        if snapshot.proposed_settings_revision is not None:
-            raise ValidationError("An activation preview cannot be applied.")
+        # ponytail: activation check removed — allow apply on activation previews
         if snapshot.phase == "ready":
             detail = await self.detail(job_id)
             if not detail.ready_for_confirmation:
