@@ -6,7 +6,7 @@ The Spotify client and the async playlist repo are mocked, so no network or DB.
 """
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -121,3 +121,23 @@ def test_best_image_url_falls_back_to_largest_when_all_below_min():
 
 def test_best_image_url_none_when_empty():
     assert _best_image_url([]) is None
+
+
+@pytest.mark.asyncio
+async def test_isrc_resolution_prefers_the_spotify_album_title():
+    """The ISRC recording sits on both a single and a compilation; the Spotify album
+    name must reach the resolver so the single wins over the Album > Single heuristic."""
+    svc = _service(AsyncMock())
+    svc._mb_repo.resolve_recording_to_release_group.return_value = "single-rg"
+    with patch(
+        "services.spotify_import_service.mb_api_get",
+        AsyncMock(return_value={"recordings": [{"id": "rec-1"}]}),
+    ):
+        result = await svc._resolve_mbid(
+            "US64G1737302", "Sufjan Stevens", "Mystery of Love"
+        )
+
+    assert result == "single-rg"
+    svc._mb_repo.resolve_recording_to_release_group.assert_awaited_once_with(
+        "rec-1", prefer_title="Mystery of Love"
+    )

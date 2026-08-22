@@ -225,7 +225,9 @@ class SpotifyImportService:
                 (t.artist_name, t.track_name) for t in local
             )
 
-        await self._async_repo.set_spotify_sync_state(playlist_id, "syncing", error=None)
+        await self._async_repo.set_spotify_sync_state(
+            playlist_id, "syncing", error=None
+        )
         # ponytail: full replace for now, diff sync when this is too slow
         await self.populate_playlist(
             user_id,
@@ -266,13 +268,17 @@ class SpotifyImportService:
                 results.append({**result, "name": pl.name})
             except (SpotifyNotLinkedError, SpotifyUnreachableError) as exc:
                 logger.debug(f"Skipping sync for {pl.name} (user {pl.user_id}): {exc}")
-                results.append({"status": "paused", "playlist_id": pl.id, "name": pl.name})
+                results.append(
+                    {"status": "paused", "playlist_id": pl.id, "name": pl.name}
+                )
             except Exception as exc:  # noqa: BLE001
                 logger.warning(f"Sync failed for playlist {pl.name} ({pl.id}): {exc}")
                 await self._async_repo.set_spotify_sync_state(
                     pl.id, "error", error=str(exc)[:200]
                 )
-                results.append({"status": "error", "playlist_id": pl.id, "name": pl.name})
+                results.append(
+                    {"status": "error", "playlist_id": pl.id, "name": pl.name}
+                )
         return results
 
     async def _resolve_album_mbids(
@@ -320,7 +326,7 @@ class SpotifyImportService:
                     if not rec_id:
                         continue
                     mbid = await self._mb_repo.resolve_recording_to_release_group(
-                        rec_id
+                        rec_id, prefer_title=album_name
                     )
                     if mbid:
                         return mbid

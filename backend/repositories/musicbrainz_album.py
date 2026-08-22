@@ -130,6 +130,23 @@ def _release_rank(release: dict, rg: dict) -> tuple[int, int, int, int, str, str
     )
 
 
+def _title_key(title: str) -> str:
+    return "".join(ch for ch in title.casefold() if ch.isalnum())
+
+
+def _releases_titled(releases: list[dict], title: str | None) -> list[dict]:
+    """Releases whose release-group title matches ``title``; all of them when none do."""
+    if not title:
+        return releases
+    wanted = _title_key(title)
+    matched = [
+        r
+        for r in releases
+        if _title_key((r.get("release-group") or {}).get("title", "")) == wanted
+    ]
+    return matched or releases
+
+
 def _pick_best_release_group(releases: list[dict]) -> tuple[str, str] | None:
     candidates: dict[str, tuple[str, tuple[int, int, int, int, str, str]]] = {}
     for release in releases:
@@ -1023,6 +1040,8 @@ class MusicBrainzAlbumMixin:
     async def resolve_recording_to_release_group(
         self,
         recording_mbid: str,
+        *,
+        prefer_title: str | None = None,
     ) -> str | None:
         """Resolve an AcoustID recording MBID to its best release-group MBID.
 
@@ -1035,19 +1054,24 @@ class MusicBrainzAlbumMixin:
         if not recording_mbid:
             return None
         cache_key = f"{MB_RECORDING_TO_RG_PREFIX}{recording_mbid}"
+        if prefer_title:
+            cache_key += f"|{_title_key(prefer_title)}"
         cached = await self._cache.get(cache_key)
         if cached is not None:
             return cached if cached != "" else None
 
         return await mb_deduplicator.dedupe(
             cache_key,
-            lambda: self._fetch_recording_release_group(recording_mbid, cache_key),
+            lambda: self._fetch_recording_release_group(
+                recording_mbid, cache_key, prefer_title
+            ),
         )
 
     async def _fetch_recording_release_group(
         self,
         recording_mbid: str,
         cache_key: str,
+        prefer_title: str | None = None,
     ) -> str | None:
         try:
             result = await mb_api_get(
@@ -1056,7 +1080,9 @@ class MusicBrainzAlbumMixin:
                 priority=RequestPriority.BACKGROUND_SYNC,
                 decode_type=_RecordingReleaseGroupPayload,
             )
-            best = _pick_best_release_group(result.releases)
+            best = _pick_best_release_group(
+                _releases_titled(result.releases, prefer_title)
+            )
             rg_id = best[0] if best else None
             await self._cache.set(cache_key, rg_id or "", ttl_seconds=86400)
             return rg_id
