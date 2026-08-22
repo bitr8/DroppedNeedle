@@ -141,6 +141,12 @@ _IMPORT_FAILED_MSG = (
     "Files downloaded, but couldn't be saved into your library - check the library "
     "folder is writable and has free space"
 )
+# Every transfer ended terminal with zero bytes: the files never reached the mount.
+_NOTHING_DELIVERED_MSG = (
+    "No peer sent any data - every transfer timed out before it started. If this keeps "
+    "happening, check slskd can accept incoming connections (listen port / VPN "
+    "forwarded port)"
+)
 _MANAGEMENT_HELD_MSG = "Download complete. The files are secured while Library Management waits for attention."
 _MANAGEMENT_HOLD_STORAGE_MSG = (
     "Download complete, but DroppedNeedle could not secure its Library Management "
@@ -787,6 +793,7 @@ class DownloadOrchestrator:
         wrong_track = False
         source_missing = False
         import_failed = False
+        nothing_delivered = False
         while True:
             attempt_result = ProcessResult(
                 succeeded=[], failed=[], workspace_disposition="discard"
@@ -918,7 +925,12 @@ class DownloadOrchestrator:
                 if any(f.reason == WRONG_TRACK for f in result.failed):
                     wrong_track = True
                 if any(f.reason == SOURCE_FILE_MISSING for f in result.failed):
-                    source_missing = True
+                    if outcome == _OUT_COMPLETED or bool(
+                        status and (status.files_completed or status.bytes_downloaded)
+                    ):
+                        source_missing = True
+                    else:
+                        nothing_delivered = True
                 if any(f.reason == IMPORT_FAILED for f in result.failed):
                     import_failed = True
                 if result.management_hold_reason_code is not None:
@@ -1021,6 +1033,7 @@ class DownloadOrchestrator:
                     imported_any,
                     source_missing=source_missing,
                     import_failed=import_failed,
+                    nothing_delivered=nothing_delivered,
                     process_result=attempt_result,
                 )
                 return
@@ -1535,6 +1548,7 @@ class DownloadOrchestrator:
         *,
         source_missing: bool = False,
         import_failed: bool = False,
+        nothing_delivered: bool = False,
         process_result=None,
     ) -> None:
         """No candidates/attempts left and the download still isn't whole. A track
@@ -1550,6 +1564,8 @@ class DownloadOrchestrator:
             fail_msg = _FILES_NOT_FOUND_MSG
         elif import_failed:
             fail_msg = _IMPORT_FAILED_MSG
+        elif nothing_delivered:
+            fail_msg = _NOTHING_DELIVERED_MSG
         else:
             fail_msg = self._no_source_message()
         if task.download_type == "track":

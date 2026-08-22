@@ -662,6 +662,34 @@ async def test_missing_on_mount_fails_with_mount_message_not_quarantine(tmp_path
 
 
 @pytest.mark.asyncio
+async def test_nothing_delivered_fails_with_peer_message_not_mount(tmp_path: Path):
+    """Every transfer ended terminal with zero bytes: the files never reached the mount,
+    so the message must point at slskd's inbound connectivity, not the downloads path."""
+    from services.native.file_processor import SOURCE_FILE_MISSING
+
+    client = _StubClient(_status("failed", files_completed=0, bytes_=0))
+    store, orch, _fp, _lib = _build(
+        tmp_path,
+        client=client,
+        scorer_result=[_candidate(0.9)],
+        fp_result=ProcessResult(
+            succeeded=[],
+            failed=[FileFailure(filename="peer/01.flac", reason=SOURCE_FILE_MISSING)],
+        ),
+        imported_rows=[],
+    )
+    task = await _new_task(store)
+
+    await orch.process_task(task.id)
+
+    final = await store.get_task(task.id)
+    assert final.status == "failed"
+    assert "No peer sent any data" in final.error_message
+    assert "slskd downloads" not in final.error_message
+    assert await store.load_quarantine_set() == set()
+
+
+@pytest.mark.asyncio
 async def test_import_failure_fails_with_library_message_not_soulseek(tmp_path: Path):
     """slskd delivered the files and we found them, but writing them into the library
     failed (IMPORT_FAILED - perms/disk/a rejected cross-mount copy). A local fault: the
