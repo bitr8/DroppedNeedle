@@ -1,18 +1,31 @@
 @import 'tailwindcss';
+@import './lib/tokens.css';
 @plugin "@tailwindcss/typography";
 @plugin "daisyui" {
 	themes: dark --default;
 }
+/* daisyUI is being retired: its palette reads from tokens.css so legacy screens track the
+   same ramp until they are rebuilt. New components use the semantic tokens directly. */
 @plugin "daisyui/theme" {
 	name: 'dark';
 	default: true;
-	--color-base-300: #1f271b;
-	--color-base-200: #161d12;
-	--color-base-100: #0d120a;
-	--color-primary: #aed5f2;
-	--color-primary-content: #071520;
-	--color-accent: #bbdb9b;
-	--color-accent-content: #0f1a0a;
+	--color-base-100: var(--color-surface);
+	--color-base-200: var(--color-surface-raised);
+	--color-base-300: var(--color-surface-overlay);
+	--color-base-content: var(--color-fg);
+	--color-primary: var(--color-accent);
+	--color-primary-content: var(--color-accent-fg);
+	--color-error: var(--color-danger);
+	--color-error-content: var(--color-accent-fg);
+	/* same names as tokens.css, so a var() here would self-reference: literal duplicates, keep in sync */
+	--color-accent: #aed5f2;
+	--color-accent-content: #071520;
+	--color-info: #7fb8f0;
+	--color-info-content: #071520;
+	--color-success: #7bd88f;
+	--color-success-content: #071520;
+	--color-warning: #f2b84b;
+	--color-warning-content: #071520;
 }
 
 /* Self-hosted (SIL OFL) so no external font calls; Latin + Latin-ext subsets */
@@ -3951,7 +3964,8 @@ textarea {
 	left: 0;
 	z-index: 60;
 	display: grid;
-	grid-template-columns: repeat(5, minmax(0, 1fr));
+	grid-auto-flow: column;
+	grid-auto-columns: minmax(0, 1fr);
 	min-height: calc(var(--ms-bottom-nav-height) + var(--ms-safe-bottom));
 	padding: 0.45rem 0.5rem calc(0.45rem + var(--ms-safe-bottom));
 	border-top: 1px solid oklch(from var(--color-base-content) l c h / 0.08);

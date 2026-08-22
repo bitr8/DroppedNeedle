@@ -344,15 +344,12 @@ describe('+layout.svelte sidebar', () => {
 		expect(discographyDownloadStore.open).toBe(false);
 	});
 
-	it('does not render "Playlists" link in the sidebar when the download client is unavailable', async () => {
+	it('renders "Playlists" for every role, download client or not', async () => {
 		renderLayout();
-		await expect.element(page.getByText('Playlists')).not.toBeInTheDocument();
-	});
+		await expect.element(page.getByText('Playlists').first()).toBeInTheDocument();
 
-	it('renders "Playlists" link in the sidebar when the download client is available', async () => {
-		integrationState.download_client = true;
-		renderLayout();
-		await expect.element(page.getByText('Playlists')).toBeInTheDocument();
+		authStore.setUser(testUser('admin'));
+		await expect.element(page.getByText('Playlists').first()).toBeInTheDocument();
 	});
 
 	it('always renders "Library" link in the sidebar', async () => {
@@ -368,22 +365,40 @@ describe('+layout.svelte sidebar', () => {
 	});
 
 	it('Playlists link navigates to /playlists', async () => {
-		integrationState.download_client = true;
 		renderLayout();
-		const link = page.getByText('Playlists');
+		const link = page.getByText('Playlists').first();
 		await expect.element(link).toBeInTheDocument();
 		const anchor = link.element().closest('a');
 		expect(anchor).not.toBeNull();
 		expect(anchor!.getAttribute('href')).toBe('/playlists');
 	});
 
-	it('Playlists link has tooltip data attribute', async () => {
-		integrationState.download_client = true;
+	it('admin sidebar Playlists link has tooltip data attribute', async () => {
+		authStore.setUser(testUser('admin'));
 		renderLayout();
-		const link = page.getByText('Playlists');
+		const link = page.getByText('Playlists').first();
 		await expect.element(link).toBeInTheDocument();
 		const anchor = link.element().closest('a');
 		expect(anchor!.getAttribute('data-tip')).toBe('Playlists');
+	});
+
+	it('gives non-administrators the four-item shell with no admin chrome', async () => {
+		authStore.setUser(testUser('trusted'));
+		renderLayout();
+		for (const label of ['Home', 'Search', 'Library', 'Playlists']) {
+			await expect.element(page.getByRole('link', { name: label }).first()).toBeInTheDocument();
+		}
+		await expect.element(page.getByRole('link', { name: /Settings/ })).not.toBeInTheDocument();
+		await expect.element(page.getByRole('link', { name: 'Discover' })).not.toBeInTheDocument();
+		await expect.element(page.getByRole('button', { name: 'Log out' })).not.toBeInTheDocument();
+		expect(document.querySelector('.drawer-side')).toBeNull();
+	});
+
+	it('gives administrators the sidebar shell with Settings', async () => {
+		authStore.setUser(testUser('admin'));
+		renderLayout();
+		await expect.element(page.getByRole('link', { name: /Settings/ }).first()).toBeInTheDocument();
+		expect(document.querySelector('.drawer-side')).not.toBeNull();
 	});
 
 	it('shows the Library Management destination in a labelled admin section', async () => {

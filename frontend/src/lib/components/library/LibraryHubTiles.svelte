@@ -56,21 +56,14 @@
 
 	// one shared heartbeat advances every deck; per-deck offsets stagger them
 	let cycle = $state(0);
-	let reduced = $state(false);
 	let wide = $state(false);
 
-	// mirrors actions/tilt.ts so flipping the preference mid-session stops the deck instead of hard-snapping
 	$effect(() => {
-		const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
 		const wideMq = window.matchMedia('(min-width: 640px)');
-		reduced = mq.matches;
 		wide = wideMq.matches;
-		const onChange = (e: MediaQueryListEvent) => (reduced = e.matches);
 		const onWideChange = (e: MediaQueryListEvent) => (wide = e.matches);
-		mq.addEventListener('change', onChange);
 		wideMq.addEventListener('change', onWideChange);
 		return () => {
-			mq.removeEventListener('change', onChange);
 			wideMq.removeEventListener('change', onWideChange);
 		};
 	});
