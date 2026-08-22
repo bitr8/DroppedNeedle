@@ -15,13 +15,28 @@
 		DEFAULT_SETTINGS_PAGE,
 		resolvePage
 	} from '$lib/components/settings/settingsPages';
-	import { ArrowUpCircle, Youtube, Globe, HardDrive, HardDriveDownload } from 'lucide-svelte';
+	import {
+		ArrowUpCircle,
+		Youtube,
+		Globe,
+		HardDrive,
+		HardDriveDownload,
+		Speaker
+	} from 'lucide-svelte';
+	import { api } from '$lib/api/client';
 	import JellyfinIcon from '$lib/components/JellyfinIcon.svelte';
 	import NavidromeIcon from '$lib/components/NavidromeIcon.svelte';
 	import PlexIcon from '$lib/components/PlexIcon.svelte';
 	import SpotifyIcon from '$lib/components/SpotifyIcon.svelte';
 
 	const integration = fromStore(integrationStore);
+	let musicAssistant = $state<{ connected: boolean; enabled: boolean } | null>(null);
+	onMount(() => {
+		api.global
+			.get<{ connected: boolean; enabled: boolean }>('/api/v1/music-assistant/status')
+			.then((status) => (musicAssistant = status))
+			.catch(() => (musicAssistant = null));
+	});
 	const updateCheckQuery = getUpdateCheckQuery();
 	const updateAvailable = $derived(updateCheckQuery.data?.update_available ?? false);
 
@@ -98,6 +113,14 @@
 			page: 'integrations',
 			anchor: 'spotify',
 			connected: null
+		},
+		{
+			id: 'music-assistant',
+			label: 'Music Assistant',
+			icon: Speaker,
+			page: 'integrations',
+			anchor: 'music-assistant',
+			connected: musicAssistant ? musicAssistant.enabled && musicAssistant.connected : null
 		}
 	]);
 

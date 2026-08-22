@@ -151,6 +151,10 @@ class MusicAssistantClient:
         self._connected = False
         self._players.clear()
 
+    async def restart(self) -> None:
+        await self.stop()
+        await self.start()
+
     async def _run(self) -> None:
         backoff = 1.0
         ws_url = self._url.replace("https://", "wss://").replace("http://", "ws://") + "/ws"
@@ -226,6 +230,40 @@ class MusicAssistantClient:
             if (item.get("name") or "").casefold() == name.casefold():
                 return item
         return await self.command("music/playlists/create_playlist", name=name)
+
+
+
+async def test_connection(
+    url: str, token: str, timeout: float = 6.0
+) -> tuple[bool, str, str | None]:
+    """Probe MA: unauthenticated ``GET /info`` for reachability+version, then ``POST /api``
+    with the bearer token to separate a rejected token from an unreachable server."""
+    base = (url or "").rstrip("/")
+    if not base:
+        return False, "Music Assistant URL is not set", None
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        try:
+            info_response = await client.get(f"{base}/info")
+            info_response.raise_for_status()
+            version = (info_response.json() or {}).get("server_version")
+        except Exception as exc:  # noqa: BLE001 - any transport/parse failure is "unreachable"
+            return False, f"Could not reach Music Assistant: {exc}", None
+
+        try:
+            response = await client.post(
+                f"{base}/api",
+                json={"command": "players/all", "args": {}},
+                headers={"Authorization": f"Bearer {token}"} if token else {},
+            )
+        except httpx.HTTPError as exc:
+            return False, f"Could not reach Music Assistant: {exc}", version
+
+    if response.status_code in (401, 403):
+        return False, "Music Assistant rejected the token", version
+    if response.status_code >= 400:
+        return False, f"Music Assistant returned HTTP {response.status_code}", version
+    return True, f"Connected to Music Assistant {version}".strip(), version
 
 
 def _decode(raw: Any) -> dict[str, Any]:

@@ -51,6 +51,7 @@ export const settingsPages: SettingsPageDef[] = [
 			{ id: 'youtube', label: 'YouTube' },
 			{ id: 'lastfm', label: 'Last.fm' },
 			{ id: 'spotify', label: 'Spotify' },
+			{ id: 'music-assistant', label: 'Music Assistant' },
 			{ id: 'connect-apps', label: 'Connect apps' },
 			{ id: 'events', label: 'Live events' }
 		]

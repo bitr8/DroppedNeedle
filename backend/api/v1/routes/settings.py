@@ -57,6 +57,13 @@ from infrastructure.msgspec_fastapi import AppStruct, MsgSpecBody, MsgSpecRoute
 from middleware import CurrentAdminDep
 from services.preferences_service import PreferencesService
 from services.settings_service import SettingsService
+from services.music_assistant.client import (
+    get_music_assistant_client,
+    test_connection as ma_test_connection,
+)
+from infrastructure.crypto import decrypt, encrypt
+from infrastructure.validators import validate_service_url
+from core.exceptions import ValidationError as AppValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -933,3 +940,112 @@ async def verify_oidc_connection(
 ) -> VerifyConnectionResponse:
     valid, message = await oidc_auth.verify(settings)
     return VerifyConnectionResponse(valid=valid, message=message)
+
+
+MUSIC_ASSISTANT_TOKEN_MASK = "ma****"
+
+
+class MusicAssistantSettings(AppStruct):
+    url: str = ""
+    enabled: bool = False
+    token_set: bool = False
+
+
+class MusicAssistantSettingsUpdate(AppStruct):
+    url: str = ""
+    enabled: bool = False
+    token: str | None = None
+
+
+class MusicAssistantTestRequest(AppStruct):
+    url: str = ""
+    token: str | None = None
+
+
+class MusicAssistantTestResult(AppStruct):
+    ok: bool
+    message: str
+    server_version: str | None = None
+
+
+def _music_assistant_block(preferences_service: PreferencesService) -> dict:
+    block = preferences_service._load_config().get("music_assistant") or {}
+    return block if isinstance(block, dict) else {}
+
+
+def _music_assistant_token(
+    preferences_service: PreferencesService, supplied: str | None
+) -> str:
+    """Plaintext token to probe with: the stored one unless the caller sent a new one."""
+    if supplied and supplied != MUSIC_ASSISTANT_TOKEN_MASK:
+        return supplied
+    stored = _music_assistant_block(preferences_service).get("token") or ""
+    return decrypt(stored)[0] if stored else ""
+
+
+@router.get("/music-assistant", response_model=MusicAssistantSettings)
+async def get_music_assistant_settings(
+    preferences_service: PreferencesService = Depends(get_preferences_service),
+) -> MusicAssistantSettings:
+    block = _music_assistant_block(preferences_service)
+    return MusicAssistantSettings(
+        url=str(block.get("url") or ""),
+        enabled=bool(block.get("enabled")),
+        token_set=bool(block.get("token")),
+    )
+
+
+@router.put("/music-assistant", response_model=MusicAssistantSettings)
+async def update_music_assistant_settings(
+    settings: MusicAssistantSettingsUpdate = MsgSpecBody(MusicAssistantSettingsUpdate),
+    preferences_service: PreferencesService = Depends(get_preferences_service),
+) -> MusicAssistantSettings:
+    url = (settings.url or "").strip().rstrip("/")
+    if url:
+        try:
+            validate_service_url(url, label="Music Assistant URL")
+        except AppValidationError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    elif settings.enabled:
+        raise HTTPException(
+            status_code=400, detail="Music Assistant URL is required when enabled"
+        )
+
+    stored = _music_assistant_block(preferences_service).get("token") or ""
+    token = stored
+    if settings.token is not None and settings.token != MUSIC_ASSISTANT_TOKEN_MASK:
+        token = encrypt(settings.token) if settings.token else ""
+
+    try:
+        preferences_service._save_section(
+            "music_assistant", {"url": url, "enabled": settings.enabled, "token": token}
+        )
+    except ConfigurationError as e:
+        logger.warning("Configuration error updating Music Assistant settings: %s", e)
+        raise HTTPException(
+            status_code=400, detail="Music Assistant settings are incomplete or invalid"
+        )
+
+    await get_music_assistant_client().restart()
+    return MusicAssistantSettings(
+        url=url, enabled=settings.enabled, token_set=bool(token)
+    )
+
+
+@router.post("/music-assistant/test", response_model=MusicAssistantTestResult)
+async def test_music_assistant_connection(
+    body: MusicAssistantTestRequest = MsgSpecBody(MusicAssistantTestRequest),
+    preferences_service: PreferencesService = Depends(get_preferences_service),
+) -> MusicAssistantTestResult:
+    url = (body.url or "").strip().rstrip("/") or _music_assistant_block(
+        preferences_service
+    ).get("url", "")
+    try:
+        validate_service_url(url, label="Music Assistant URL")
+    except AppValidationError as e:
+        return MusicAssistantTestResult(ok=False, message=str(e))
+
+    ok, message, version = await ma_test_connection(
+        url, _music_assistant_token(preferences_service, body.token)
+    )
+    return MusicAssistantTestResult(ok=ok, message=message, server_version=version)
