@@ -114,6 +114,12 @@ async def _background_import(
     except Exception as exc:  # noqa: BLE001
         logger.warning(f"Auto-link failed for playlist {playlist_id}: {exc}")
 
+    # auto-link has run, so unresolved tracks are now genuinely missing (§8.3)
+    try:
+        await svc.refresh_missing_count(playlist_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug(f"Missing-count refresh failed for {playlist_id}: {exc}")
+
     # Tell the detail/list UI the import finished so the tracks appear without a manual
     # refresh. Fires whenever populate succeeded (auto-link above is best-effort). The
     # event_id lets the client de-dupe the SSEPublisher's replay-to-new-subscribers.
@@ -200,7 +206,7 @@ async def import_spotify_playlist(
         try:
             registry.register(task_key, task)
         except RuntimeError:
-            pass
+            task.cancel()
 
     return SpotifyImportResponse(playlist_id=playlist_id)
 
@@ -262,6 +268,12 @@ async def _background_sync(
     except Exception as exc:  # noqa: BLE001
         logger.warning(f"Auto-link failed during sync for playlist {playlist_id}: {exc}")
 
+    # auto-link has run, so unresolved tracks are now genuinely missing (§8.3)
+    try:
+        await svc.refresh_missing_count(playlist_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug(f"Missing-count refresh failed for {playlist_id}: {exc}")
+
     try:
         await get_sse_publisher().publish(
             f"user:{user_id}",
@@ -305,6 +317,6 @@ async def sync_spotify_playlist(
         try:
             registry.register(task_key, task)
         except RuntimeError:
-            pass
+            task.cancel()
 
     return SpotifySyncResponse(playlist_id=existing.id, status="syncing")

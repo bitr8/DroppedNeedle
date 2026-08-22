@@ -99,17 +99,17 @@ export function libraryWorkPercentage(item: LibraryWorkItem): number | null {
 
 export function libraryWorkHref(item: LibraryWorkItem): string {
 	if (item.kind === 'library_management') {
-		return `/library/management/operations/${encodeURIComponent(item.id)}`;
+		return `/manage/operations/${encodeURIComponent(item.id)}`;
 	}
 	if (
 		item.kind === 'identity_preparation' ||
 		item.kind === 'reidentification' ||
 		item.kind === 'identity_review'
 	) {
-		return '/library/management?tab=organize';
+		return '/manage?tab=organize';
 	}
-	if (item.kind === 'recovery') return '/library/management?tab=organize';
-	return '/library/management?tab=scanning';
+	if (item.kind === 'recovery') return '/manage?tab=organize';
+	return '/manage?tab=scan';
 }
 
 export function libraryWorkContext(item: LibraryWorkItem): string | null {

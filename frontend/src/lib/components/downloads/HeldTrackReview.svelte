@@ -17,6 +17,7 @@
 		importHeldTrack
 	} from '$lib/queries/downloads/DownloadMutations.svelte';
 	import { formatCountdown } from '$lib/queries/downloads/downloadStatus';
+	import { toastStore } from '$lib/stores/toast';
 	import type { HeldImport } from '$lib/types';
 
 	let { held }: { held: HeldImport } = $props();
@@ -26,7 +27,26 @@
 	// latch once resolved: the card stays mounted until the held query refetches, so
 	// without this a fast second click re-POSTs an already-consumed held id
 	let done = $state(false);
-	const busy = $derived(importMut.isPending || discardMut.isPending || done);
+	let discardPending = $state(false);
+	let discardTimer: ReturnType<typeof setTimeout> | undefined;
+	const busy = $derived(importMut.isPending || discardMut.isPending || done || discardPending);
+
+	function requestDiscard(): void {
+		discardPending = true;
+		toastStore.undo('File will be discarded', () => {
+			clearTimeout(discardTimer);
+			discardPending = false;
+		});
+		discardTimer = setTimeout(() => {
+			discardMut.mutate(
+				{ id: held.id, release_group_mbid: held.release_group_mbid },
+				{
+					onSuccess: () => (done = true),
+					onError: () => (discardPending = false)
+				}
+			);
+		}, 6000);
+	}
 	// server-side failure reason (e.g. no library root configured) shown inline so the
 	// review card itself says what to fix - the toast alone disappears too fast
 	const actionError = $derived.by(() => {
@@ -164,15 +184,12 @@
 		</button>
 		<button
 			class="btn btn-ghost btn-xs text-base-content/60 hover:text-error"
-			onclick={() =>
-				discardMut.mutate(
-					{ id: held.id, release_group_mbid: held.release_group_mbid },
-					{ onSuccess: () => (done = true) }
-				)}
+			onclick={requestDiscard}
 			disabled={busy}
 			title="Delete this file and keep looking"
 		>
-			<X class="h-3.5 w-3.5" /> Discard
+			<X class="h-3.5 w-3.5" />
+			{discardPending ? 'Discarding…' : 'Discard'}
 		</button>
 	</div>
 	{#if actionError}

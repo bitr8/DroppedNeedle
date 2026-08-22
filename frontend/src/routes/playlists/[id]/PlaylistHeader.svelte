@@ -3,6 +3,8 @@
 		updatePlaylist,
 		uploadPlaylistCover,
 		deletePlaylistCover,
+		syncSpotifyPlaylist,
+		detachSpotifyPlaylist,
 		type PlaylistDetail
 	} from '$lib/api/playlists';
 	import PlaylistDiscoveryModal from '$lib/components/PlaylistDiscoveryModal.svelte';
@@ -15,6 +17,13 @@
 	import NavidromeIcon from '$lib/components/NavidromeIcon.svelte';
 	import PlexIcon from '$lib/components/PlexIcon.svelte';
 	import { getSourceColor, getSourceLabel } from '$lib/utils/sources';
+	import SyncPill from '$lib/components/kit/SyncPill.svelte';
+	import DetachConfirmModal from '$lib/components/playlists/DetachConfirmModal.svelte';
+	import {
+		isSpotifyLinked,
+		spotifySourceId,
+		toSyncPillProps
+	} from '$lib/components/playlists/syncStatus';
 
 	interface Props {
 		playlist: PlaylistDetail;
@@ -55,6 +64,56 @@
 	let sourceType = $derived(playlist.source_ref?.split(':')[0] ?? null);
 	let sourceColor = $derived(sourceType ? getSourceColor(sourceType) : null);
 	let sourceLabel = $derived(sourceType ? getSourceLabel(sourceType) : null);
+
+	let linked = $derived(isSpotifyLinked(playlist.source_ref));
+	let syncing = $state(false);
+	let detachOpen = $state(false);
+	let detaching = $state(false);
+	let pill = $derived(
+		syncing
+			? { status: 'syncing' as const, syncedAt: null, missingCount: 0 }
+			: toSyncPillProps(playlist)
+	);
+
+	async function runSync() {
+		const spotifyId = spotifySourceId(playlist.source_ref);
+		if (!spotifyId || syncing) return;
+		syncing = true;
+		try {
+			await syncSpotifyPlaylist(spotifyId);
+			toastStore.show({ message: 'Sync started', type: 'success', duration: 2500 });
+		} catch {
+			toastStore.show({
+				message: "Couldn't sync this playlist",
+				type: 'error',
+				action: { label: 'Retry', onClick: () => void runSync() }
+			});
+		} finally {
+			syncing = false;
+		}
+	}
+
+	async function confirmDetach() {
+		if (detaching) return;
+		detaching = true;
+		try {
+			await detachSpotifyPlaylist(playlist.id);
+			onplaylistupdate(
+				buildUpdatedPlaylist({
+					source_ref: null,
+					spotify_sync_status: null,
+					spotify_synced_at: null,
+					spotify_missing_count: 0
+				})
+			);
+			toastStore.show({ message: 'Playlist is now a local copy.', type: 'success' });
+			detachOpen = false;
+		} catch {
+			toastStore.show({ message: "Couldn't detach that playlist.", type: 'error' });
+		} finally {
+			detaching = false;
+		}
+	}
 
 	let editingName = $state(false);
 	let nameInput = $state('');
@@ -334,6 +393,32 @@
 			{/if}
 		</div>
 
+		{#if linked}
+			<div class="flex flex-wrap items-center gap-2 pt-1">
+				<SyncPill status={pill.status} syncedAt={pill.syncedAt} missingCount={pill.missingCount} />
+				<span class="text-sm text-fg-muted">Mirrors your Spotify playlist</span>
+				{#if canEdit}
+					<span class="text-fg-subtle">·</span>
+					<button
+						type="button"
+						class="text-sm font-semibold text-accent hover:underline disabled:opacity-50"
+						onclick={() => void runSync()}
+						disabled={syncing}
+					>
+						{syncing ? 'Syncing…' : 'Sync now'}
+					</button>
+					<span class="text-fg-subtle">·</span>
+					<button
+						type="button"
+						class="text-sm font-semibold text-fg-muted hover:text-fg hover:underline"
+						onclick={() => (detachOpen = true)}
+					>
+						Detach
+					</button>
+				{/if}
+			</div>
+		{/if}
+
 		<div class="flex items-center gap-3 pt-4">
 			<button
 				type="button"
@@ -408,3 +493,13 @@
 	playlistId={playlist.id}
 	playlistName={playlist.name}
 />
+
+{#if linked}
+	<DetachConfirmModal
+		bind:open={detachOpen}
+		playlistName={playlist.name}
+		trackCount={playlist.track_count}
+		pending={detaching}
+		onconfirm={() => void confirmDetach()}
+	/>
+{/if}

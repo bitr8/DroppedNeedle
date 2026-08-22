@@ -235,3 +235,103 @@ describe('search result enrichment demand', () => {
 			.toHaveAttribute('href', '/artist/local-artist');
 	});
 });
+
+describe('search page — first-class entry point', () => {
+	beforeEach(async () => {
+		searchStore.clear();
+		await resetQueryCacheForUserSwitch();
+	});
+	afterEach(async () => {
+		globalThis.fetch = originalFetch;
+		await resetQueryCacheForUserSwitch();
+		authStore.clear();
+		localStorage.clear();
+	});
+
+	it('shows a large search field and hint when there is no query', async () => {
+		authStore.setUser({
+			id: 'ellie',
+			display_name: 'Ellie',
+			role: 'user',
+			email: null,
+			avatar_url: null,
+			username: 'ellie',
+			username_display: 'Ellie',
+			providers: ['local']
+		});
+
+		render(SearchPageTestHarness, { data: { query: '' } });
+
+		await expect.element(page.getByRole('heading', { name: 'Search' })).toBeInTheDocument();
+		await expect.element(page.getByPlaceholder('Search artists, albums…')).toBeInTheDocument();
+		await expect.element(page.getByText(/Search your library and MusicBrainz/)).toBeInTheDocument();
+	});
+
+	it('splits albums into "In your library" and "Not in library — Request" for non-admin users', async () => {
+		authStore.setUser({
+			id: 'ellie',
+			display_name: 'Ellie',
+			role: 'user',
+			email: null,
+			avatar_url: null,
+			username: 'ellie',
+			username_display: 'Ellie',
+			providers: ['local']
+		});
+
+		globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.startsWith('/api/v1/library/artists?')) {
+				return jsonResponse({ items: [], total: 0, album_artist_total: 0, contributor_total: 0 });
+			}
+			if (url.startsWith('/api/v1/library/albums?')) return jsonResponse({ items: [], total: 0 });
+			if (url.startsWith('/api/v1/search/artists?')) {
+				return jsonResponse({ bucket: 'artists', limit: 6, offset: 0, results: [], status: 'ok' });
+			}
+			if (url.startsWith('/api/v1/search/albums?')) {
+				return jsonResponse({
+					bucket: 'albums',
+					limit: 24,
+					offset: 0,
+					results: [
+						{
+							title: 'Owned Album',
+							artist: 'Artist A',
+							year: 2001,
+							musicbrainz_id: 'album-owned',
+							in_library: true,
+							requested: false,
+							score: 90
+						},
+						{
+							title: 'New Album',
+							artist: 'Artist B',
+							year: 2020,
+							musicbrainz_id: 'album-new',
+							in_library: false,
+							requested: false,
+							score: 80
+						}
+					],
+					top_result: null,
+					status: 'ok'
+				});
+			}
+			throw new Error(`Unexpected request: ${url}`);
+		}) as typeof fetch;
+
+		render(SearchPageTestHarness, { data: { query: 'ellie search' } });
+
+		await expect
+			.element(page.getByRole('heading', { name: 'In your library' }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole('heading', { name: 'Not in library — Request' }))
+			.toBeInTheDocument();
+		await expect.element(page.getByText('Owned Album')).toBeInTheDocument();
+		await expect.element(page.getByText('New Album')).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('button', { name: 'Request New Album' }))
+			.toBeInTheDocument();
+	});
+});

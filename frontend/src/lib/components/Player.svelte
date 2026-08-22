@@ -145,7 +145,11 @@
 				{/if}
 				<div class="min-w-0 pr-1">
 					{#if playerStore.nowPlaying.trackName}
-						<p class="text-sm font-semibold truncate">{playerStore.nowPlaying.trackName}</p>
+						<p class="text-sm font-semibold truncate">
+							<a href="/now-playing" class="hover:underline" aria-label="Open Now Playing"
+								>{playerStore.nowPlaying.trackName}</a
+							>
+						</p>
 						<p class="text-xs opacity-60 truncate">
 							{#if isAlbumLinkable(playerStore.nowPlaying.albumId)}
 								<a href="/album/{playerStore.nowPlaying.albumId}" class="hover:underline"

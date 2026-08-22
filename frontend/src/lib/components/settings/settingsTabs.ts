@@ -15,11 +15,13 @@ const adminTabs = new Set([
 	'plugins',
 	'security',
 	'wrapped',
-	'users'
+	'users',
+	'library-management'
 ]);
 
 const settingsTabLoaders: Record<string, SettingsLoader> = {
 	library: () => import('./SettingsLibrary.svelte'),
+	'library-management': () => import('./SettingsLibraryManagementSection.svelte'),
 	'free-music': () => import('./SettingsFreeMusic.svelte'),
 	'download-client': () => import('./SettingsDownloadClients.svelte'),
 	indexers: () => import('./SettingsIndexers.svelte'),

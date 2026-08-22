@@ -18,6 +18,8 @@ const mockUploadPlaylistCover = vi.fn();
 const mockDeletePlaylistCover = vi.fn();
 const mockCheckTrackMembership = vi.fn();
 const mockResolvePlaylistSources = vi.fn();
+const mockSyncSpotifyPlaylist = vi.fn();
+const mockDetachSpotifyPlaylist = vi.fn();
 
 vi.mock('$lib/api/playlists', () => ({
 	queueItemToTrackData: (item: unknown) => item,
@@ -36,7 +38,9 @@ vi.mock('$lib/api/playlists', () => ({
 	deletePlaylistCover: (...args: unknown[]) => mockDeletePlaylistCover(...args),
 	checkTrackMembership: (...args: unknown[]) => mockCheckTrackMembership(...args),
 	resolvePlaylistSources: (...args: unknown[]) => mockResolvePlaylistSources(...args),
-	requestMissingTracks: vi.fn()
+	requestMissingTracks: vi.fn(),
+	syncSpotifyPlaylist: (...args: unknown[]) => mockSyncSpotifyPlaylist(...args),
+	detachSpotifyPlaylist: (...args: unknown[]) => mockDetachSpotifyPlaylist(...args)
 }));
 
 // The detail page consumes the user-scoped TanStack detail query + share mutation;
@@ -152,6 +156,9 @@ function makePlaylist(overrides: Partial<PlaylistDetail> = {}): PlaylistDetail {
 		is_owner: true,
 		owner_name: null,
 		is_redacted: false,
+		spotify_sync_status: null,
+		spotify_synced_at: null,
+		spotify_missing_count: 0,
 		tracks: [
 			makeTrack({ id: 'trk-1', position: 0, track_name: 'First Track', duration: 240 }),
 			makeTrack({
@@ -182,6 +189,8 @@ describe('Playlist detail page', () => {
 		mockDeletePlaylistCover.mockReset();
 		mockResolvePlaylistSources.mockReset();
 		mockResolvePlaylistSources.mockResolvedValue({});
+		mockSyncSpotifyPlaylist.mockReset();
+		mockDetachSpotifyPlaylist.mockReset();
 		mockToastShow.mockReset();
 		mockPlayQueue.mockReset();
 		mockAddToQueue.mockReset();
@@ -363,6 +372,46 @@ describe('Playlist detail page', () => {
 
 		await expect.element(page.getByText('First Track')).toBeVisible();
 		expect(page.getByRole('button', { name: 'Play First Track' }).elements()).toHaveLength(1);
+	});
+
+	it('shows sync status and a not-in-library line for a Spotify-linked playlist', async () => {
+		mockSyncSpotifyPlaylist.mockResolvedValue({ playlist_id: 'pl-1', status: 'syncing' });
+		detailQuery.data = makePlaylist({
+			source_ref: 'spotify:abc123',
+			spotify_sync_status: 'synced',
+			spotify_synced_at: new Date(Date.now() - 5 * 60_000).toISOString(),
+			tracks: [
+				makeTrack({ id: 'trk-1', position: 0, track_name: 'First Track', available_sources: [] })
+			],
+			track_count: 1
+		});
+		renderDetail('pl-1');
+
+		await expect.element(page.getByText('Mirrors your Spotify playlist')).toBeVisible();
+		await expect.element(page.getByText('Synced 5m ago')).toBeVisible();
+		await expect.element(page.getByText('not in library yet')).toBeVisible();
+
+		await page.getByRole('button', { name: 'Sync now' }).click();
+		expect(mockSyncSpotifyPlaylist).toHaveBeenCalledWith('abc123');
+	});
+
+	it('detaches a Spotify-linked playlist', async () => {
+		mockDetachSpotifyPlaylist.mockResolvedValue(undefined);
+		detailQuery.data = makePlaylist({
+			source_ref: 'spotify:abc123',
+			spotify_sync_status: 'synced',
+			spotify_synced_at: new Date().toISOString()
+		});
+		renderDetail('pl-1');
+
+		await page.getByRole('button', { name: 'Detach' }).click();
+		const dialog = page.getByRole('dialog');
+		await expect.element(dialog).toBeVisible();
+		await dialog.getByRole('button', { name: 'Detach' }).click();
+
+		await vi.waitFor(() => {
+			expect(mockDetachSpotifyPlaylist).toHaveBeenCalledWith('pl-1');
+		});
 	});
 
 	it('play button on track calls playQueue with correct start index', async () => {

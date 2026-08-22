@@ -58,6 +58,9 @@ function makePlaylist(overrides: Partial<PlaylistSummary> = {}): PlaylistSummary
 		is_owner: true,
 		owner_name: null,
 		is_redacted: false,
+		spotify_sync_status: null,
+		spotify_synced_at: null,
+		spotify_missing_count: 0,
 		...overrides
 	};
 }
@@ -150,6 +153,26 @@ describe('Playlists list page', () => {
 
 		await expect.element(page.getByText('Private playlist')).toBeVisible();
 		await expect.element(page.getByText(/owned by Cara/)).toBeVisible();
+	});
+
+	it('shows a sync pill and Sync now/Detach for an owned Spotify-linked playlist', async () => {
+		listQuery.data = [
+			makePlaylist({
+				id: 'pl-spotify',
+				name: 'Roadtrip',
+				source_ref: 'spotify:abc123',
+				spotify_sync_status: 'synced',
+				spotify_synced_at: new Date(Date.now() - 5 * 60_000).toISOString(),
+				spotify_missing_count: 0
+			})
+		];
+		render(PlaylistsPage);
+
+		await expect.element(page.getByText('Synced 5m ago')).toBeVisible();
+		await expect.element(page.getByRole('button', { name: /Sync Roadtrip now/ })).toBeVisible();
+		await expect
+			.element(page.getByRole('button', { name: /Detach Roadtrip from Spotify/ }))
+			.toBeVisible();
 	});
 
 	it('hides the delete button on a shared (non-owned) card', async () => {

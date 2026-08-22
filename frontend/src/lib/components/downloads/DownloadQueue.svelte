@@ -1,29 +1,22 @@
 <script lang="ts">
-	import { ChevronDown, Download, RotateCcw, TimerOff, Trash2 } from 'lucide-svelte';
+	import { Download, TimerOff } from 'lucide-svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 
 	import EmptyState from '$lib/components/EmptyState.svelte';
-	import {
-		clearFinished,
-		retryAllFailed,
-		stopAllRetries
-	} from '$lib/queries/downloads/DownloadMutations.svelte';
+	import { stopAllRetries } from '$lib/queries/downloads/DownloadMutations.svelte';
 	import { getDownloadsQuery } from '$lib/queries/downloads/DownloadQueries.svelte';
 	import { getHeldImportsQuery } from '$lib/queries/downloads/HeldQueries.svelte';
-	import { getQuarantineQuery } from '$lib/queries/downloads/QuarantineQueries.svelte';
 	import { bucketSections, collapseRetryChains } from '$lib/queries/downloads/downloadStatus';
-	import { authStore } from '$lib/stores/authStore.svelte';
 
 	import DownloadItem from './DownloadItem.svelte';
 	import HeldTrackCard from './HeldTrackCard.svelte';
 	import ManagementHoldCard from './ManagementHoldCard.svelte';
 	import NowPressingHero from './NowPressingHero.svelte';
-	import QuarantinePanel from './QuarantinePanel.svelte';
 	import WantedCard from './WantedCard.svelte';
 
+	let { highlight = null }: { highlight?: string | null } = $props();
+
 	const query = getDownloadsQuery();
-	const isAdmin = $derived(authStore.isAdmin);
-	const quarantineQuery = getQuarantineQuery(() => isAdmin);
 	const heldQuery = getHeldImportsQuery();
 	const held = $derived(heldQuery.data?.items ?? []);
 	const managementHeld = $derived(held.filter((item) => item.reason.startsWith('management:')));
@@ -41,234 +34,159 @@
 		new Set(held.flatMap((item) => (item.source_task_id ? [item.source_task_id] : [])))
 	);
 
-	const clear = clearFinished();
 	const stopAll = stopAllRetries();
-	const retryAll = retryAllFailed();
 
 	// collapse auto-retry chains so each album is one row (latest attempt), then group into
-	// the dashboard's stacked sections
+	// the queue tab's Needs you / Active / Waiting sections
 	const tasks = $derived(
 		collapseRetryChains(query.data?.items ?? []).filter((task) => !heldTaskIds.has(task.id))
 	);
 	const sections = $derived(bucketSections(tasks));
 
 	const hero = $derived(sections.now_spinning[0] ?? null);
-	const spinningRest = $derived(sections.now_spinning.slice(1));
-	const quarantineCount = $derived(isAdmin ? (quarantineQuery.data?.items.length ?? 0) : 0);
-	// "nothing at all" - no downloads, nothing held for review, and (for admins) nothing quarantined
-	const isEmpty = $derived(tasks.length === 0 && held.length === 0 && quarantineCount === 0);
-
-	// History = everything terminal. Split the counts so the header is honest about how it went.
-	const crateCount = $derived(
-		sections.history.filter((t) => t.status === 'completed' || t.status === 'partial').length
+	const activeRest = $derived([
+		...(hero ? sections.now_spinning.slice(1) : sections.now_spinning),
+		...sections.cueing
+	]);
+	const activeCount = $derived(sections.now_spinning.length + sections.cueing.length);
+	const needsYouCount = $derived(
+		sections.needs_you.length + managementGroups.length + verificationHeld.length
 	);
-	const missedCount = $derived(sections.history.length - crateCount);
-	const hasFailed = $derived(sections.history.some((t) => t.status === 'failed'));
-	const historyLabel = $derived(
-		`${crateCount} in your crate` + (missedCount > 0 ? ` · ${missedCount} didn't make it` : '')
+
+	const isEmpty = $derived(
+		activeCount === 0 && sections.wanted.length === 0 && needsYouCount === 0
 	);
 
 	const pulse = $derived(
 		[
-			{ n: sections.now_spinning.length, label: 'spinning', cls: 'text-primary' },
-			{ n: sections.wanted.length, label: 'still hunting', cls: 'text-warning' },
-			{ n: sections.needs_you.length, label: 'needs you', cls: 'text-info' },
-			{ n: managementGroups.length, label: 'organizer paused', cls: 'text-warning' },
-			{ n: verificationHeld.length, label: 'to verify', cls: 'text-warning' },
-			{ n: sections.cueing.length, label: 'cueing up', cls: 'text-base-content/70' },
-			{ n: crateCount, label: 'in your crate', cls: 'text-success' }
+			{ n: needsYouCount, label: 'needs you', cls: 'text-info' },
+			{ n: activeCount, label: 'active', cls: 'text-primary' },
+			{ n: sections.wanted.length, label: 'waiting', cls: 'text-warning' }
 		].filter((p) => p.n > 0)
 	);
 
-	let historyOpen = $state(false);
-	let quarantineOpen = $state(false);
+	function highlightClass(id: string): string {
+		return id === highlight
+			? 'rounded-3xl ring-2 ring-accent ring-offset-2 ring-offset-surface transition-shadow'
+			: '';
+	}
+
+	$effect(() => {
+		if (!highlight) return;
+		void tasks.length;
+		void held.length;
+		const el = document.getElementById(`dl-${highlight}`);
+		el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+	});
 </script>
 
 <div class="space-y-7">
 	{#if query.isLoading}
 		<div class="space-y-3">
-			<div class="skeleton h-32 w-full rounded-3xl"></div>
-			<div class="skeleton h-20 w-full rounded-2xl"></div>
-			<div class="skeleton h-20 w-full rounded-2xl"></div>
+			<div class="h-32 w-full animate-pulse rounded-card bg-surface-raised"></div>
+			<div class="h-20 w-full animate-pulse rounded-card bg-surface-raised"></div>
+			<div class="h-20 w-full animate-pulse rounded-card bg-surface-raised"></div>
 		</div>
 	{:else if query.isError}
-		<div class="alert alert-error">Couldn't load your downloads - retrying shortly.</div>
+		<div class="rounded-card border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+			Couldn't load your downloads - retrying shortly.
+		</div>
 	{:else if isEmpty}
 		<EmptyState
 			icon={Download}
-			title="Nothing on the turntable"
+			title="Nothing in the queue"
 			description="Request an album and you'll watch it search, download, and land in your library here."
 			ctaLabel="Browse Library"
 			ctaHref="/library/albums"
 		/>
 	{:else}
 		{#if pulse.length > 0}
-			<p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-base-content/50">
+			<p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-fg-subtle">
 				{#each pulse as p, i (p.label)}
-					{#if i > 0}<span class="text-base-content/25">·</span>{/if}
+					{#if i > 0}<span class="text-fg-subtle/60">·</span>{/if}
 					<span><span class="font-bold tabular-nums {p.cls}">{p.n}</span> {p.label}</span>
 				{/each}
 			</p>
 		{/if}
 
-		<!-- NOW SPINNING -->
-		{#if sections.now_spinning.length > 0}
-			<section class="space-y-3">
-				<h2 class="dl-eyebrow">
-					Now spinning <span class="dl-count">{sections.now_spinning.length}</span>
-				</h2>
-				{#if hero}<NowPressingHero task={hero} showEyebrow={false} />{/if}
-				{#each spinningRest as task (task.id)}
-					<DownloadItem {task} />
-				{/each}
-			</section>
-		{/if}
-
-		<!-- STILL HUNTING (auto-retry ladder; "Wanted" is the requests page's word) -->
-		{#if sections.wanted.length > 0}
-			<section class="space-y-3">
-				<div class="flex items-center justify-between gap-2">
-					<h2 class="dl-eyebrow">
-						Still hunting <span class="text-base-content/35">· auto-retrying</span>
-						<span class="dl-count">{sections.wanted.length}</span>
-					</h2>
-					<button
-						class="btn btn-ghost btn-xs text-base-content/60 hover:text-error"
-						onclick={() => stopAll.mutate()}
-						disabled={stopAll.isPending}
-						title="Stop auto-retrying every still-hunting album - they won't be watched for later either"
-					>
-						<TimerOff class="h-3.5 w-3.5" /> Stop all
-					</button>
-				</div>
-				<div class="space-y-3">
-					{#each sections.wanted as task (task.id)}
-						<WantedCard {task} />
-					{/each}
-				</div>
-			</section>
-		{/if}
-
 		<!-- NEEDS YOU -->
-		{#if sections.needs_you.length > 0}
+		{#if needsYouCount > 0}
 			<section class="space-y-3">
-				<h2 class="dl-eyebrow">
-					Needs you <span class="text-base-content/35">· pick a release</span>
-					<span class="dl-count">{sections.needs_you.length}</span>
-				</h2>
-				{#each sections.needs_you as task (task.id)}
-					<DownloadItem {task} />
-				{/each}
-			</section>
-		{/if}
+				<h2 class="dl-eyebrow">Needs you <span class="dl-count">{needsYouCount}</span></h2>
 
-		{#if managementGroups.length > 0}
-			<section class="space-y-3">
-				<h2 class="dl-eyebrow">
-					Organizer needs attention <span class="text-base-content/35">· files secured</span>
-					<span class="dl-count">{managementGroups.length}</span>
-				</h2>
-				<div class="space-y-3">
-					{#each managementGroups as items (items[0]?.source_task_id ?? items[0]?.id)}
-						<ManagementHoldCard {items} />
-					{/each}
-				</div>
-			</section>
-		{/if}
-
-		<!-- COULDN'T VERIFY (held for "import anyway" review) -->
-		{#if verificationHeld.length > 0}
-			<section class="space-y-3">
-				<h2 class="dl-eyebrow">
-					Couldn't verify <span class="text-base-content/35">· your call</span>
-					<span class="dl-count">{verificationHeld.length}</span>
-				</h2>
-				<div class="space-y-3">
-					{#each verificationHeld as item (item.id)}
-						<HeldTrackCard held={item} />
-					{/each}
-				</div>
-			</section>
-		{/if}
-
-		<!-- CUEING UP -->
-		{#if sections.cueing.length > 0}
-			<section class="space-y-3">
-				<h2 class="dl-eyebrow">Cueing up <span class="dl-count">{sections.cueing.length}</span></h2>
-				{#each sections.cueing as task (task.id)}
-					<DownloadItem {task} />
-				{/each}
-			</section>
-		{/if}
-
-		<!-- HISTORY (collapsible) -->
-		{#if sections.history.length > 0}
-			<section class="space-y-3">
-				<div class="flex items-center justify-between gap-2">
-					<button
-						class="dl-eyebrow flex items-center gap-1.5 hover:text-base-content/70"
-						onclick={() => (historyOpen = !historyOpen)}
-						aria-expanded={historyOpen}
-					>
-						<ChevronDown
-							class="h-3.5 w-3.5 transition-transform motion-reduce:transition-none {historyOpen
-								? ''
-								: '-rotate-90'}"
-						/>
-						History
-						<span class="font-normal normal-case tracking-normal text-base-content/40">
-							{historyLabel}
-						</span>
-					</button>
-					{#if historyOpen}
-						<div class="flex items-center gap-1">
-							{#if hasFailed}
-								<button
-									class="btn btn-ghost btn-primary btn-xs"
-									onclick={() => retryAll.mutate()}
-									disabled={retryAll.isPending}
-									title="Retry every failed download"
-								>
-									<RotateCcw class="h-3.5 w-3.5" /> Retry all failed
-								</button>
-							{/if}
-							<button
-								class="btn btn-ghost btn-xs text-base-content/60 hover:text-error"
-								onclick={() => clear.mutate()}
-								disabled={clear.isPending}
-								title="Remove completed and cancelled downloads from this list"
-							>
-								<Trash2 class="h-3.5 w-3.5" /> Clear
-							</button>
-						</div>
-					{/if}
-				</div>
-				{#if historyOpen}
+				{#if sections.needs_you.length > 0}
 					<div class="space-y-3">
-						{#each sections.history as task (task.id)}
-							<DownloadItem {task} />
+						<h3 class="text-xs font-semibold text-fg-subtle">Pick a release</h3>
+						{#each sections.needs_you as task (task.id)}
+							<div id="dl-{task.id}" class={highlightClass(task.id)}>
+								<DownloadItem {task} />
+							</div>
+						{/each}
+					</div>
+				{/if}
+
+				{#if managementGroups.length > 0}
+					<div class="space-y-3">
+						<h3 class="text-xs font-semibold text-fg-subtle">Organizer needs attention</h3>
+						{#each managementGroups as items (items[0]?.source_task_id ?? items[0]?.id)}
+							{@const groupId = items[0]?.source_task_id ?? String(items[0]?.id ?? '')}
+							<div id="dl-{groupId}" class={highlightClass(groupId)}>
+								<ManagementHoldCard {items} />
+							</div>
+						{/each}
+					</div>
+				{/if}
+
+				{#if verificationHeld.length > 0}
+					<div class="space-y-3">
+						<h3 class="text-xs font-semibold text-fg-subtle">Couldn't verify</h3>
+						{#each verificationHeld as item (item.id)}
+							<div id="dl-held-{item.id}" class={highlightClass(`held-${item.id}`)}>
+								<HeldTrackCard held={item} />
+							</div>
 						{/each}
 					</div>
 				{/if}
 			</section>
 		{/if}
 
-		<!-- QUARANTINE (admin, collapsible) -->
-		{#if quarantineCount > 0}
+		<!-- ACTIVE -->
+		{#if activeCount > 0}
 			<section class="space-y-3">
-				<button
-					class="dl-eyebrow flex items-center gap-1.5 hover:text-base-content/70"
-					onclick={() => (quarantineOpen = !quarantineOpen)}
-					aria-expanded={quarantineOpen}
-				>
-					<ChevronDown
-						class="h-3.5 w-3.5 transition-transform motion-reduce:transition-none {quarantineOpen
-							? ''
-							: '-rotate-90'}"
-					/>
-					Quarantine <span class="dl-count">{quarantineCount}</span>
-				</button>
-				{#if quarantineOpen}<QuarantinePanel />{/if}
+				<h2 class="dl-eyebrow">Active <span class="dl-count">{activeCount}</span></h2>
+				{#if hero}<NowPressingHero task={hero} showEyebrow={false} />{/if}
+				{#each activeRest as task (task.id)}
+					<div id="dl-{task.id}" class={highlightClass(task.id)}>
+						<DownloadItem {task} />
+					</div>
+				{/each}
+			</section>
+		{/if}
+
+		<!-- WAITING (auto-retry ladder) -->
+		{#if sections.wanted.length > 0}
+			<section class="space-y-3">
+				<div class="flex items-center justify-between gap-2">
+					<h2 class="dl-eyebrow">
+						Waiting <span class="text-fg-subtle/70">· auto-retrying</span>
+						<span class="dl-count">{sections.wanted.length}</span>
+					</h2>
+					<button
+						class="rounded-control px-2 py-1 text-xs font-semibold text-fg-muted hover:bg-surface-hover hover:text-danger"
+						onclick={() => stopAll.mutate()}
+						disabled={stopAll.isPending}
+						title="Stop auto-retrying everything waiting - it won't be watched for later either"
+					>
+						<TimerOff class="mr-1 inline h-3.5 w-3.5" /> Stop all
+					</button>
+				</div>
+				<div class="space-y-3">
+					{#each sections.wanted as task (task.id)}
+						<div id="dl-{task.id}" class={highlightClass(task.id)}>
+							<WantedCard {task} />
+						</div>
+					{/each}
+				</div>
 			</section>
 		{/if}
 	{/if}
@@ -280,7 +198,7 @@
 		font-weight: 700;
 		text-transform: uppercase;
 		letter-spacing: 0.16em;
-		color: oklch(from var(--color-base-content) l c h / 0.45);
+		color: oklch(from var(--color-fg) l c h / 0.45);
 	}
 	.dl-count {
 		display: inline-block;
@@ -290,7 +208,7 @@
 		font-size: 10px;
 		font-variant-numeric: tabular-nums;
 		letter-spacing: 0;
-		color: oklch(from var(--color-base-content) l c h / 0.6);
-		background: oklch(from var(--color-base-content) l c h / 0.08);
+		color: oklch(from var(--color-fg) l c h / 0.6);
+		background: oklch(from var(--color-fg) l c h / 0.08);
 	}
 </style>

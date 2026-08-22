@@ -65,7 +65,9 @@ import {
 	reorderPlaylistTrack,
 	uploadPlaylistCover,
 	deletePlaylistCover,
-	queueItemToTrackData
+	queueItemToTrackData,
+	syncSpotifyPlaylist,
+	detachSpotifyPlaylist
 } from './playlists';
 import type { QueueItem } from '$lib/player/types';
 
@@ -241,6 +243,27 @@ describe('playlists API client', () => {
 			mockDelete.mockResolvedValue(undefined);
 			await deletePlaylistCover('p1');
 			expect(mockDelete).toHaveBeenCalledWith('/api/v1/playlists/p1/cover');
+		});
+	});
+
+	describe('syncSpotifyPlaylist', () => {
+		it('sends POST to the me/spotify sync endpoint', async () => {
+			mockPost.mockResolvedValue({ playlist_id: 'p1', status: 'syncing' });
+
+			const result = await syncSpotifyPlaylist('spotify-abc');
+
+			expect(mockPost).toHaveBeenCalledWith('/api/v1/me/spotify/playlists/spotify-abc/sync');
+			expect(result).toEqual({ playlist_id: 'p1', status: 'syncing' });
+		});
+	});
+
+	describe('detachSpotifyPlaylist', () => {
+		it('sends POST to the playlist detach endpoint', async () => {
+			mockPost.mockResolvedValue({ status: 'ok' });
+
+			await detachSpotifyPlaylist('p1');
+
+			expect(mockPost).toHaveBeenCalledWith('/api/v1/playlists/p1/spotify/detach');
 		});
 	});
 

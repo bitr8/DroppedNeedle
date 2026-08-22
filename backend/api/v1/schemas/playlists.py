@@ -38,6 +38,10 @@ class PlaylistSummaryResponse(AppStruct):
     is_owner: bool = False
     owner_name: str | None = None
     is_redacted: bool = False
+    # Spotify mirror status (§8.6).
+    spotify_sync_status: str | None = None
+    spotify_synced_at: str | None = None
+    spotify_missing_count: int = 0
 
 
 class PlaylistDetailResponse(AppStruct):
@@ -57,6 +61,11 @@ class PlaylistDetailResponse(AppStruct):
     is_owner: bool = False
     owner_name: str | None = None
     is_redacted: bool = False
+    # Spotify mirror status (§8.6).
+    spotify_sync_status: str | None = None
+    spotify_synced_at: str | None = None
+    spotify_missing_count: int = 0
+    spotify_sync_error: str | None = None
 
 
 class RedactedPlaylist(AppStruct):
@@ -70,6 +79,25 @@ class RedactedPlaylist(AppStruct):
 
 class PlaylistListResponse(AppStruct):
     playlists: list[PlaylistSummaryResponse | RedactedPlaylist] = msgspec.field(default_factory=list)
+
+
+class SpotifySyncPlaylistRow(AppStruct):
+    playlist_id: str
+    name: str
+    status: str | None = None
+    synced_at: str | None = None
+    missing_count: int = 0
+    error: str | None = None
+
+
+class SpotifySyncStatusResponse(AppStruct):
+    last_run_at: str | None = None
+    next_run_at: str | None = None
+    interval_minutes: float = 60.0
+    checked: int = 0
+    updated: int = 0
+    failed: int = 0
+    playlists: list[SpotifySyncPlaylistRow] = msgspec.field(default_factory=list)
 
 
 class SetPlaylistPublicRequest(AppStruct):

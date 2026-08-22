@@ -44,6 +44,18 @@ vi.mock('$lib/components/profile/NavidromeMusicFoldersCard.svelte', emptyCompone
 vi.mock('$lib/components/profile/ScrobblingDiscoveryCard.svelte', emptyComponent);
 vi.mock('$lib/components/profile/SpotifyConnectionCard.svelte', emptyComponent);
 
+// SectionPrefsManager (My pages section) is left REAL, same treatment as ProfileConnectApps:
+// only its own query module is mocked, so the page↔section wiring is actually exercised.
+vi.mock('$lib/queries/section-prefs/SectionPrefsQuery.svelte', () => ({
+	getSectionPrefsQuery: () => ({
+		data: { pages: { home: [], discover: [], sidebar: [] } },
+		isLoading: false,
+		isError: false,
+		refetch: vi.fn()
+	}),
+	saveSectionPrefs: vi.fn().mockResolvedValue(undefined)
+}));
+
 vi.mock('$lib/queries/connect-apps/ConnectAppsQueries.svelte', () => ({
 	getConnectAppsSettingsQuery: () => ({
 		data: { subsonic_enabled: true, jellyfin_enabled: true },
@@ -93,18 +105,13 @@ describe('profile route page', () => {
 			.toBeInTheDocument();
 	});
 
-	it('lists the visible profile sections in the page navigation', async () => {
+	it('lists the top-level profile sections in the page navigation', async () => {
 		render(ProfilePage);
 		const navigation = page.getByRole('navigation', { name: 'Page sections' });
 		await expect.element(navigation.getByRole('link', { name: 'Account' })).toBeInTheDocument();
-		await expect
-			.element(navigation.getByRole('link', { name: 'Connected Services' }))
-			.toBeInTheDocument();
-		await expect
-			.element(navigation.getByRole('link', { name: 'Connect Apps' }))
-			.toBeInTheDocument();
-		await expect.element(navigation.getByRole('link', { name: 'Scrobbling' })).toBeInTheDocument();
-		await expect.element(navigation.getByRole('link', { name: 'Spotify' })).toBeInTheDocument();
+		await expect.element(navigation.getByRole('link', { name: 'Connections' })).toBeInTheDocument();
+		await expect.element(navigation.getByRole('link', { name: 'My pages' })).toBeInTheDocument();
+		await expect.element(navigation.getByRole('link', { name: 'Session' })).toBeInTheDocument();
 	});
 
 	it('scrolls to the #connect-apps anchor on a cold deep-link once profile has rendered', async () => {
@@ -112,5 +119,27 @@ describe('profile route page', () => {
 		// the effect fires after profile resolves + one animation frame
 		await vi.waitFor(() => expect(scrollSpy).toHaveBeenCalled());
 		expect(document.getElementById('connect-apps')).not.toBeNull();
+	});
+
+	it('hosts the per-user page preferences (Home/Discover/Sidebar) under My pages', async () => {
+		render(ProfilePage);
+		const myPages = document.getElementById('my-pages');
+		expect(myPages).not.toBeNull();
+		await expect.element(page.getByRole('heading', { name: 'Home', level: 2 })).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('heading', { name: 'Discover', level: 2 }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole('heading', { name: 'Sidebar', level: 2 }))
+			.toBeInTheDocument();
+	});
+
+	it('nests the Spotify connection card inside the Connections group', async () => {
+		render(ProfilePage);
+		const connections = document.getElementById('connections');
+		const spotify = document.getElementById('spotify');
+		expect(connections).not.toBeNull();
+		expect(spotify).not.toBeNull();
+		expect(connections?.contains(spotify)).toBe(true);
 	});
 });

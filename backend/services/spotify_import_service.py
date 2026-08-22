@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
-from typing import TYPE_CHECKING, Any
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any, Iterable
 
 from infrastructure.queue.priority_queue import RequestPriority
 from repositories.musicbrainz_album import _pick_best_release_group
@@ -28,6 +30,16 @@ _MB_CONCURRENCY = 4
 
 class SpotifyNotLinkedError(Exception):
     pass
+
+
+class SpotifyUnreachableError(Exception):
+    """Auth expired or Spotify unreachable: the playlist pauses, the loop carries on."""
+
+
+def _fingerprint(pairs: Iterable[tuple[str, str]]) -> str:
+    """Order-sensitive digest of a track set - a mirror follows Spotify's order too."""
+    joined = "\n".join(f"{artist}|{track}" for artist, track in pairs)
+    return hashlib.sha1(joined.encode("utf-8")).hexdigest()
 
 
 def _best_image_url(images: list[dict], min_size: int = 250) -> str | None:
@@ -117,7 +129,11 @@ class SpotifyImportService:
         return record.id
 
     async def populate_playlist(
-        self, user_id: str, spotify_playlist_id: str, playlist_id: str
+        self,
+        user_id: str,
+        spotify_playlist_id: str,
+        playlist_id: str,
+        status: str = "synced",
     ) -> None:
         client = await self._get_client(user_id)
 
@@ -127,12 +143,6 @@ class SpotifyImportService:
         )
 
         album_to_mbid = await self._resolve_album_mbids(raw_tracks)
-
-        existing_tracks = await self._async_repo.get_tracks(playlist_id)
-        if existing_tracks:
-            await self._async_repo.remove_tracks(
-                playlist_id, [t.id for t in existing_tracks]
-            )
 
         track_dicts = []
         for track in raw_tracks:
@@ -161,11 +171,24 @@ class SpotifyImportService:
                 }
             )
 
+        existing_tracks = await self._async_repo.get_tracks(playlist_id)
+        if existing_tracks:
+            await self._async_repo.remove_tracks(
+                playlist_id, [t.id for t in existing_tracks]
+            )
         await self._async_repo.add_tracks(playlist_id, track_dicts)
 
-        snapshot_id = pl_info.get("snapshot_id")
-        if snapshot_id:
-            await self._async_repo.update_spotify_snapshot(playlist_id, snapshot_id)
+        await self._async_repo.set_spotify_sync_state(
+            playlist_id,
+            status,
+            snapshot_id=pl_info.get("snapshot_id") or None,
+            synced_at=datetime.now(timezone.utc).isoformat(),
+            error=None,
+            missing_count=await self._async_repo.count_unresolved_tracks(playlist_id),
+            track_hash=_fingerprint(
+                (t["artist_name"], t["track_name"]) for t in track_dicts
+            ),
+        )
 
         logger.info(
             f"Imported Spotify playlist {spotify_playlist_id} - internal {playlist_id} ({len(track_dicts)} tracks)"
@@ -175,8 +198,16 @@ class SpotifyImportService:
         self, user_id: str, spotify_playlist_id: str, playlist_id: str
     ) -> dict:
         """Re-sync if Spotify's snapshot changed. Returns sync result summary."""
-        client = await self._get_client(user_id)
-        pl_info = await client.get_playlist(spotify_playlist_id)
+        try:
+            client = await self._get_client(user_id)
+            pl_info = await client.get_playlist(spotify_playlist_id)
+        except Exception as exc:
+            await self._async_repo.set_spotify_sync_state(
+                playlist_id, "paused", error="spotify_unreachable"
+            )
+            if isinstance(exc, SpotifyNotLinkedError):
+                raise
+            raise SpotifyUnreachableError(str(exc)) from exc
         remote_snapshot = pl_info.get("snapshot_id") or ""
 
         playlist = await self._async_repo.get_playlist(playlist_id)
@@ -185,13 +216,39 @@ class SpotifyImportService:
         if remote_snapshot and remote_snapshot == local_snapshot:
             return {"status": "unchanged", "playlist_id": playlist_id}
 
+        # One-way mirror: local edits since the last sync are about to be overwritten,
+        # so record that they were rather than merging (§8.5).
+        conflicted = False
+        if playlist and playlist.spotify_synced_track_hash:
+            local = await self._async_repo.get_tracks(playlist_id)
+            conflicted = playlist.spotify_synced_track_hash != _fingerprint(
+                (t.artist_name, t.track_name) for t in local
+            )
+
+        await self._async_repo.set_spotify_sync_state(playlist_id, "syncing", error=None)
         # ponytail: full replace for now, diff sync when this is too slow
-        await self.populate_playlist(user_id, spotify_playlist_id, playlist_id)
+        await self.populate_playlist(
+            user_id,
+            spotify_playlist_id,
+            playlist_id,
+            status="conflict" if conflicted else "synced",
+        )
         return {
-            "status": "synced",
+            "status": "conflict" if conflicted else "synced",
             "playlist_id": playlist_id,
             "snapshot_id": remote_snapshot,
         }
+
+    async def refresh_missing_count(self, playlist_id: str) -> int:
+        """Re-count tracks with no playable source, after auto-link has run."""
+        missing = await self._async_repo.count_unresolved_tracks(playlist_id)
+        playlist = await self._async_repo.get_playlist(playlist_id)
+        await self._async_repo.set_spotify_sync_state(
+            playlist_id,
+            (playlist.spotify_sync_status if playlist else None) or "synced",
+            missing_count=missing,
+        )
+        return missing
 
     async def check_all_synced_playlists(self) -> list[dict]:
         """Check all Spotify-linked playlists and sync any that changed."""
@@ -207,10 +264,14 @@ class SpotifyImportService:
             try:
                 result = await self.sync_playlist(pl.user_id, spotify_id, pl.id)
                 results.append({**result, "name": pl.name})
-            except SpotifyNotLinkedError:
-                logger.debug(f"Skipping sync for {pl.name}: Spotify not linked for user {pl.user_id}")
-            except Exception:
-                logger.exception(f"Sync failed for playlist {pl.name} ({pl.id})")
+            except (SpotifyNotLinkedError, SpotifyUnreachableError) as exc:
+                logger.debug(f"Skipping sync for {pl.name} (user {pl.user_id}): {exc}")
+                results.append({"status": "paused", "playlist_id": pl.id, "name": pl.name})
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(f"Sync failed for playlist {pl.name} ({pl.id}): {exc}")
+                await self._async_repo.set_spotify_sync_state(
+                    pl.id, "error", error=str(exc)[:200]
+                )
                 results.append({"status": "error", "playlist_id": pl.id, "name": pl.name})
         return results
 

@@ -484,9 +484,10 @@ class EditionConversionService:
             raise ValidationError("Confirm Apply Library Management before starting.")
         if not request.idempotency_key.strip():
             raise ValidationError("An apply idempotency key is required.")
-        token_hash = hashlib.sha256(request.preview_token.encode()).hexdigest()
-        if not hmac.compare_digest(token_hash, job.final_preview_token_hash or ""):
-            raise ValidationError("The final conversion preview token is invalid.")
+        if request.preview_token is not None:
+            token_hash = hashlib.sha256(request.preview_token.encode()).hexdigest()
+            if not hmac.compare_digest(token_hash, job.final_preview_token_hash or ""):
+                raise ValidationError("The final conversion preview token is invalid.")
         if job.state == "applied":
             snapshot = await self._store.get_library_management_job_snapshot(
                 preview_job_id

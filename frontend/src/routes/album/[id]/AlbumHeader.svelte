@@ -121,6 +121,23 @@
 		coverageKnown && libraryInLibrary && libraryTrackCount > 0 && coverageCovered === 0
 	);
 
+	// §5.3 object-attached attention line: organizer hold or exhausted retries on
+	// this album's active download. Admin gets the deep link; everyone else gets
+	// a quiet line instead of the operational detail.
+	const isManagementHeld = $derived(managementHeld.length > 0);
+	const isRepeatedFailure = $derived(
+		headerDownloadTask?.status === 'failed' && (headerDownloadTask?.retry_count ?? 0) > 0
+	);
+	const needsAttention = $derived(isManagementHeld || isRepeatedFailure);
+	const attentionText = $derived(
+		isManagementHeld
+			? 'Organizer hold needs a decision'
+			: 'Repeated download failures — needs a look'
+	);
+	const attentionHref = $derived(
+		headerDownloadTask ? `/downloads?tab=queue&highlight=${headerDownloadTask.id}` : ''
+	);
+
 	async function handleRescan() {
 		try {
 			await rescan.mutateAsync(releaseGroupMbid);
@@ -526,7 +543,19 @@
 			{#if downloadClientConfigured}
 				<div class="pt-4 flex flex-col gap-3">
 					{#if headerDownloadTask}
-						<AlbumDownloadStatus task={headerDownloadTask} {managementHeld} />
+						{#if needsAttention && !authStore.isAdmin}
+							<p class="text-sm text-fg-muted">Rob's still tidying this one up.</p>
+						{:else}
+							<AlbumDownloadStatus
+								task={headerDownloadTask}
+								managementHeld={authStore.isAdmin ? managementHeld : []}
+							/>
+						{/if}
+						{#if needsAttention && authStore.isAdmin}
+							<a href={attentionHref} class="text-sm font-semibold text-warning hover:underline">
+								{attentionText}
+							</a>
+						{/if}
 					{/if}
 					<div class="flex flex-wrap items-start gap-3">
 						{#if inLibrary || libraryInLibrary}

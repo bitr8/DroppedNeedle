@@ -28,7 +28,11 @@ function createToastStore() {
 		clearTimeout(timer);
 		set(toast);
 		const duration =
-			toast.duration === undefined ? (toast.type === 'error' ? null : 4000) : toast.duration;
+			toast.duration === undefined
+				? toast.type === 'error' || toast.type === 'warning'
+					? null
+					: 4000
+				: toast.duration;
 		if (duration !== null) timer = setTimeout(() => set(null), duration);
 	};
 

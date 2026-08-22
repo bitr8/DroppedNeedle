@@ -506,8 +506,8 @@ class LibraryManagementPreviewService:
         hours: int,
     ) -> LibraryManagementPreviewDetailResponse:
         now = self._clock()
-        settings = await self._store.get_target_library_management_settings()
-        max_hours = settings.get("preview_retention_hours", 168) if settings else 168
+        settings = self._preferences.get_library_management_settings_raw()
+        max_hours = getattr(settings, "preview_retention_hours", None) or 168
         clamped = min(max(1, hours), max_hours)
         await self._store.extend_library_management_preview(
             job_id,

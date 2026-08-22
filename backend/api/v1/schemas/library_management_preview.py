@@ -110,9 +110,9 @@ class LibraryManagementTagEditorContextResponse(AppStruct):
 
 
 class LibraryManagementApplyRequest(AppStruct):
-    preview_token: str | None = None
     expected_operation_row_revision: int
     idempotency_key: str
+    preview_token: str | None = None
     confirmation: bool = True
 
 

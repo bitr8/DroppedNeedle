@@ -62,21 +62,21 @@ describe('UnmatchedFilesSection', () => {
 		expect(container.querySelector('section')).toBeNull();
 	});
 
-	it('removal is a two-step confirm before the mutation fires', async () => {
+	it('removal opens a confirm modal before the mutation fires', async () => {
 		renderSection([orphan()]);
 		await page.getByRole('button', { name: /^Remove$/ }).click();
 		expect(h.removeMut).not.toHaveBeenCalled(); // armed, not fired
 		await page.getByRole('button', { name: /Remove file/ }).click();
 		expect(h.removeMut).toHaveBeenCalledWith(
 			{ fileId: 'f-wrong', albumMbid: 'rg-1' },
-			expect.objectContaining({ onSuccess: expect.any(Function) })
+			expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) })
 		);
 	});
 
-	it('backing out of the confirm keeps the file', async () => {
+	it('backing out of the confirm modal keeps the file', async () => {
 		renderSection([orphan()]);
 		await page.getByRole('button', { name: /^Remove$/ }).click();
-		await page.getByRole('button', { name: /Keep this file/ }).click();
+		await page.getByRole('button', { name: /^Cancel$/ }).click();
 		await expect.element(page.getByRole('button', { name: /^Remove$/ })).toBeVisible();
 		expect(h.removeMut).not.toHaveBeenCalled();
 	});

@@ -175,7 +175,7 @@ describe('LibraryActivityStrip', () => {
 		renderStrip([management], { adminOverride: true });
 		await expect
 			.element(page.getByRole('link'))
-			.toHaveAttribute('href', '/library/management/operations/operation%201');
+			.toHaveAttribute('href', '/manage/operations/operation%201');
 
 		renderStrip([management], { adminOverride: false });
 		await expect.element(page.getByRole('link').last()).toHaveAttribute('href', '/library');

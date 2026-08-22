@@ -15,10 +15,15 @@ function drainQueue() {
 		const src = img.dataset.src;
 		if (!src || img.src === src) continue;
 		inFlight++;
+		let settled = false;
 		const done = () => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timer);
 			inFlight--;
 			drainQueue();
 		};
+		const timer = setTimeout(done, 15000);
 		img.addEventListener('load', done, { once: true });
 		img.addEventListener('error', done, { once: true });
 		if (img.dataset.srcset) img.srcset = img.dataset.srcset;

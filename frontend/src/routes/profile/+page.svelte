@@ -23,7 +23,9 @@
 		UserCog,
 		AtSign,
 		Mail,
-		KeyRound
+		KeyRound,
+		Link2,
+		LayoutGrid
 	} from 'lucide-svelte';
 	import { authStore } from '$lib/stores/authStore.svelte';
 	import { logout } from '$lib/utils/logout';
@@ -45,6 +47,7 @@
 	import ScrobblingDiscoveryCard from '$lib/components/profile/ScrobblingDiscoveryCard.svelte';
 	import SpotifyConnectionCard from '$lib/components/profile/SpotifyConnectionCard.svelte';
 	import ProfileConnectApps from '$lib/components/profile/ProfileConnectApps.svelte';
+	import SectionPrefsManager from '$lib/components/settings/SectionPrefsManager.svelte';
 	import PageSectionToc from '$lib/components/PageSectionToc.svelte';
 	import { page } from '$app/state';
 	import { browser } from '$app/environment';
@@ -67,29 +70,24 @@
 	const navidromeEnabled = $derived(
 		profile?.services.some((service) => service.name === 'Navidrome' && service.enabled) ?? false
 	);
-	const mediaAccountsEnabled = $derived(
-		profile?.services.some(
-			(service) => service.enabled && ['Navidrome', 'Jellyfin', 'Plex'].includes(service.name)
-		) ?? false
-	);
 
 	type ProfileTocSection = {
 		id: string;
 		label: string;
 	};
 
+	// Fewer, coarser anchors than the old per-card TOC (UC-809 / frontend-design-vision §1.3):
+	// Account · Connections · My pages · Session. Individual card ids (media-accounts,
+	// connect-apps, scrobbling, spotify) stay in the DOM for deep links from elsewhere
+	// in the app, they're just nested under "Connections" instead of each getting a nav entry.
 	const profileTocSections = $derived.by<ProfileTocSection[]>(() => {
 		if (!profile) return [];
 
 		return [
 			{ id: 'account', label: 'Account' },
-			{ id: 'connected-services', label: 'Connected Services' },
-			...(mediaAccountsEnabled ? [{ id: 'media-accounts', label: 'Media Accounts' }] : []),
-			...(navidromeEnabled ? [{ id: 'navidrome-music-folders', label: 'Music Folders' }] : []),
-			{ id: 'connect-apps', label: 'Connect Apps' },
-			{ id: 'scrobbling', label: 'Scrobbling' },
-			{ id: 'spotify', label: 'Spotify' },
-			...(profile.library_stats.length > 0 ? [{ id: 'libraries', label: 'Your Libraries' }] : [])
+			{ id: 'connections', label: 'Connections' },
+			{ id: 'my-pages', label: 'My pages' },
+			{ id: 'session', label: 'Session' }
 		];
 	});
 
@@ -705,170 +703,216 @@
 					</div>
 				</section>
 
-				<section id="connected-services" class="scroll-mt-24 xl:ml-40">
+				<div id="connections" class="scroll-mt-24 xl:ml-40 flex flex-col gap-8">
 					<h2
-						class="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-base-content/50"
+						class="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-fg-subtle"
 					>
-						<ExternalLink class="h-4 w-4" />
-						Connected Services
+						<Link2 class="h-4 w-4" />
+						Connections
 					</h2>
-					<div class="grid gap-3 sm:grid-cols-3">
-						{#each visibleServices as service (service.name)}
-							{@const Icon = getServiceIcon(service.name)}
-							{@const profileUrl = getServiceProfileUrl(service)}
-							<a
-								href={profileUrl ?? undefined}
-								target={profileUrl ? '_blank' : undefined}
-								rel={profileUrl ? 'noopener noreferrer' : undefined}
-								role={profileUrl ? undefined : 'presentation'}
-								class="crate-card group rounded-xl border {getServiceBorderColor(
-									service.name
-								)} bg-base-200/50 p-4 backdrop-blur-sm transition-all hover:bg-base-200/80 hover:shadow-lg {profileUrl
-									? 'cursor-pointer'
-									: 'cursor-default'} block no-underline text-inherit"
-							>
-								<div class="flex items-center gap-3">
-									<div
-										class="flex h-10 w-10 items-center justify-center rounded-lg bg-base-300/60 {getServiceColor(
-											service.name
-										)}"
-									>
-										<Icon class="h-5 w-5" />
-									</div>
-									<div class="min-w-0 flex-1">
-										<div class="flex items-center gap-2">
-											<span class="text-sm font-semibold">{service.name}</span>
-											{#if service.enabled}
-												<span class="status status-success status-sm"></span>
-											{:else}
-												<span class="status status-error status-sm"></span>
-											{/if}
-											{#if profileUrl}
-												<ExternalLink
-													class="h-3 w-3 text-base-content/30 transition-colors group-hover:text-primary"
-												/>
-											{/if}
-										</div>
-										{#if service.enabled && service.username}
-											<p class="mt-0.5 truncate text-xs text-base-content/50">
-												{service.username}
-											</p>
-										{:else if !service.enabled}
-											<p class="mt-0.5 text-xs text-base-content/30">Not connected</p>
-										{/if}
-									</div>
-								</div>
-							</a>
-						{/each}
-					</div>
-				</section>
 
-				<div id="media-accounts" class="scroll-mt-24 xl:ml-40">
-					<MediaServerAccountsCard services={profile.services} />
-				</div>
-
-				<div id="navidrome-music-folders" class="scroll-mt-24 xl:ml-40">
-					<NavidromeMusicFoldersCard {userId} />
-				</div>
-
-				<div id="connect-apps" class="scroll-mt-24 xl:ml-40">
-					<ProfileConnectApps />
-				</div>
-
-				<div id="scrobbling" class="scroll-mt-24 xl:ml-40">
-					<ScrobblingDiscoveryCard {navidromeEnabled} />
-				</div>
-
-				<div id="spotify" class="scroll-mt-24 xl:ml-40">
-					<SpotifyConnectionCard />
-				</div>
-
-				{#if profile.library_stats.length > 0}
-					<section id="libraries" class="scroll-mt-24 xl:ml-40">
-						<h2
+					<section id="connected-services" class="scroll-mt-24">
+						<h3
 							class="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-base-content/50"
 						>
-							<Database class="h-4 w-4" />
-							Your Libraries
-						</h2>
-						<div class="space-y-4">
-							{#each profile.library_stats as stats (stats.source)}
-								{@const SourceIcon = getSourceIcon(stats.source)}
-								<div
-									class="crate-card overflow-hidden rounded-xl border border-base-300/40 bg-base-200/50 backdrop-blur-sm"
+							<ExternalLink class="h-4 w-4" />
+							Connected Services
+						</h3>
+						<div class="grid gap-3 sm:grid-cols-3">
+							{#each visibleServices as service (service.name)}
+								{@const Icon = getServiceIcon(service.name)}
+								{@const profileUrl = getServiceProfileUrl(service)}
+								<a
+									href={profileUrl ?? undefined}
+									target={profileUrl ? '_blank' : undefined}
+									rel={profileUrl ? 'noopener noreferrer' : undefined}
+									role={profileUrl ? undefined : 'presentation'}
+									class="crate-card group rounded-xl border {getServiceBorderColor(
+										service.name
+									)} bg-base-200/50 p-4 backdrop-blur-sm transition-all hover:bg-base-200/80 hover:shadow-lg {profileUrl
+										? 'cursor-pointer'
+										: 'cursor-default'} block no-underline text-inherit"
 								>
-									<div class="flex items-center gap-3 border-b border-base-300/30 px-5 py-3">
+									<div class="flex items-center gap-3">
 										<div
-											class="flex h-8 w-8 items-center justify-center rounded-lg bg-base-300/60 {getSourceColor(
-												stats.source
+											class="flex h-10 w-10 items-center justify-center rounded-lg bg-base-300/60 {getServiceColor(
+												service.name
 											)}"
 										>
-											<SourceIcon class="h-4 w-4" />
+											<Icon class="h-5 w-5" />
 										</div>
-										<span class="text-sm font-semibold">{stats.source}</span>
-									</div>
-									<div class="grid grid-cols-3 divide-x divide-base-300/30 px-1 py-4">
-										<div class="flex flex-col items-center gap-1">
-											<div class="flex items-center gap-1.5 text-base-content/50">
-												<Disc3 class="h-3.5 w-3.5" />
-												<span class="text-[10px] font-medium uppercase tracking-wider">Songs</span>
+										<div class="min-w-0 flex-1">
+											<div class="flex items-center gap-2">
+												<span class="text-sm font-semibold">{service.name}</span>
+												{#if service.enabled}
+													<span class="status status-success status-sm"></span>
+												{:else}
+													<span class="status status-error status-sm"></span>
+												{/if}
+												{#if profileUrl}
+													<ExternalLink
+														class="h-3 w-3 text-base-content/30 transition-colors group-hover:text-primary"
+													/>
+												{/if}
 											</div>
-											<span class="text-xl font-bold tabular-nums">
-												{formatNumber(stats.total_tracks)}
-											</span>
-										</div>
-										<div class="flex flex-col items-center gap-1">
-											<div class="flex items-center gap-1.5 text-base-content/50">
-												<Database class="h-3.5 w-3.5" />
-												<span class="text-[10px] font-medium uppercase tracking-wider">Albums</span>
-											</div>
-											<span class="text-xl font-bold tabular-nums">
-												{formatNumber(stats.total_albums)}
-											</span>
-										</div>
-										<div class="flex flex-col items-center gap-1">
-											<div class="flex items-center gap-1.5 text-base-content/50">
-												<Users class="h-3.5 w-3.5" />
-												<span class="text-[10px] font-medium uppercase tracking-wider">
-													Artists
-												</span>
-											</div>
-											<span class="text-xl font-bold tabular-nums">
-												{formatNumber(stats.total_artists)}
-											</span>
+											{#if service.enabled && service.username}
+												<p class="mt-0.5 truncate text-xs text-base-content/50">
+													{service.username}
+												</p>
+											{:else if !service.enabled}
+												<p class="mt-0.5 text-xs text-base-content/30">Not connected</p>
+											{/if}
 										</div>
 									</div>
-									{#if stats.total_size_human}
-										<div
-											class="flex items-center justify-center gap-2 border-t border-base-300/30 px-5 py-3"
-										>
-											<HardDrive class="h-3.5 w-3.5 text-base-content/40" />
-											<span class="text-xs text-base-content/50">
-												{stats.total_size_human} used
-											</span>
-										</div>
-									{/if}
-								</div>
+								</a>
 							{/each}
 						</div>
 					</section>
-				{/if}
 
-				<section class="flex justify-center gap-3 pt-2 xl:ml-40">
-					<a
-						href="/settings"
-						class="btn btn-outline btn-sm gap-2 rounded-full border-base-content/20 text-base-content/60 transition-all hover:border-primary hover:text-primary"
+					<div id="media-accounts" class="scroll-mt-24">
+						<MediaServerAccountsCard services={profile.services} />
+					</div>
+
+					<div id="navidrome-music-folders" class="scroll-mt-24">
+						<NavidromeMusicFoldersCard {userId} />
+					</div>
+
+					<div id="connect-apps" class="scroll-mt-24">
+						<ProfileConnectApps />
+					</div>
+
+					<div id="scrobbling" class="scroll-mt-24">
+						<ScrobblingDiscoveryCard {navidromeEnabled} />
+					</div>
+
+					<div id="spotify" class="scroll-mt-24">
+						<SpotifyConnectionCard />
+					</div>
+
+					{#if profile.library_stats.length > 0}
+						<section id="libraries" class="scroll-mt-24">
+							<h3
+								class="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-base-content/50"
+							>
+								<Database class="h-4 w-4" />
+								Your Libraries
+							</h3>
+							<div class="space-y-4">
+								{#each profile.library_stats as stats (stats.source)}
+									{@const SourceIcon = getSourceIcon(stats.source)}
+									<div
+										class="crate-card overflow-hidden rounded-xl border border-base-300/40 bg-base-200/50 backdrop-blur-sm"
+									>
+										<div class="flex items-center gap-3 border-b border-base-300/30 px-5 py-3">
+											<div
+												class="flex h-8 w-8 items-center justify-center rounded-lg bg-base-300/60 {getSourceColor(
+													stats.source
+												)}"
+											>
+												<SourceIcon class="h-4 w-4" />
+											</div>
+											<span class="text-sm font-semibold">{stats.source}</span>
+										</div>
+										<div class="grid grid-cols-3 divide-x divide-base-300/30 px-1 py-4">
+											<div class="flex flex-col items-center gap-1">
+												<div class="flex items-center gap-1.5 text-base-content/50">
+													<Disc3 class="h-3.5 w-3.5" />
+													<span class="text-[10px] font-medium uppercase tracking-wider">Songs</span
+													>
+												</div>
+												<span class="text-xl font-bold tabular-nums">
+													{formatNumber(stats.total_tracks)}
+												</span>
+											</div>
+											<div class="flex flex-col items-center gap-1">
+												<div class="flex items-center gap-1.5 text-base-content/50">
+													<Database class="h-3.5 w-3.5" />
+													<span class="text-[10px] font-medium uppercase tracking-wider"
+														>Albums</span
+													>
+												</div>
+												<span class="text-xl font-bold tabular-nums">
+													{formatNumber(stats.total_albums)}
+												</span>
+											</div>
+											<div class="flex flex-col items-center gap-1">
+												<div class="flex items-center gap-1.5 text-base-content/50">
+													<Users class="h-3.5 w-3.5" />
+													<span class="text-[10px] font-medium uppercase tracking-wider">
+														Artists
+													</span>
+												</div>
+												<span class="text-xl font-bold tabular-nums">
+													{formatNumber(stats.total_artists)}
+												</span>
+											</div>
+										</div>
+										{#if stats.total_size_human}
+											<div
+												class="flex items-center justify-center gap-2 border-t border-base-300/30 px-5 py-3"
+											>
+												<HardDrive class="h-3.5 w-3.5 text-base-content/40" />
+												<span class="text-xs text-base-content/50">
+													{stats.total_size_human} used
+												</span>
+											</div>
+										{/if}
+									</div>
+								{/each}
+							</div>
+						</section>
+					{/if}
+				</div>
+
+				<section id="my-pages" class="scroll-mt-24 xl:ml-40">
+					<h2
+						class="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-fg-subtle"
 					>
-						<Settings class="h-4 w-4" />
-						Open Settings
-					</a>
-					<button
-						class="btn btn-outline btn-sm gap-2 rounded-full border-base-content/20 text-base-content/60 transition-all hover:border-error hover:text-error"
-						onclick={() => void logout()}
+						<LayoutGrid class="h-4 w-4" />
+						My pages
+					</h2>
+					<div class="flex flex-col gap-6">
+						<SectionPrefsManager
+							page="home"
+							title="Home"
+							description="Choose which sections show up on your Home page. Changes save automatically and only affect your account."
+						/>
+						<SectionPrefsManager
+							page="discover"
+							title="Discover"
+							description="Pick which discovery sections appear on your Discover page. Changes save automatically and only affect your account."
+						/>
+						<SectionPrefsManager
+							page="sidebar"
+							title="Sidebar"
+							description="Choose which services show up in your sidebar. Changes save automatically and only affect your account."
+						/>
+					</div>
+				</section>
+
+				<section id="session" class="scroll-mt-24 xl:ml-40">
+					<h2
+						class="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-fg-subtle"
 					>
 						<LogOut class="h-4 w-4" />
-						Sign Out
-					</button>
+						Session
+					</h2>
+					<div class="flex justify-center gap-3">
+						<a
+							href="/settings"
+							class="btn btn-outline btn-sm gap-2 rounded-full border-base-content/20 text-base-content/60 transition-all hover:border-primary hover:text-primary"
+						>
+							<Settings class="h-4 w-4" />
+							Open Settings
+						</a>
+						<button
+							class="btn btn-outline btn-sm gap-2 rounded-full border-base-content/20 text-base-content/60 transition-all hover:border-error hover:text-error"
+							onclick={() => void logout()}
+						>
+							<LogOut class="h-4 w-4" />
+							Sign Out
+						</button>
+					</div>
 				</section>
 			</div>
 		</div>

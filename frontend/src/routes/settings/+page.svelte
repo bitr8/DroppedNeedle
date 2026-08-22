@@ -1,247 +1,261 @@
 <script lang="ts">
+	import type { Component, ComponentType } from 'svelte';
 	import { page } from '$app/state';
-	import { replaceState } from '$app/navigation';
-	import { onMount } from 'svelte';
+	import { goto, replaceState } from '$app/navigation';
+	import { onMount, tick } from 'svelte';
+	import { SvelteURL } from 'svelte/reactivity';
 	import { fromStore } from 'svelte/store';
 	import { integrationStore } from '$lib/stores/integration';
 	import SettingsTabContent from '$lib/components/settings/SettingsTabContent.svelte';
 	import { authStore } from '$lib/stores/authStore.svelte';
 	import { getUpdateCheckQuery } from '$lib/queries/VersionQuery.svelte';
 	import {
-		Settings2,
-		Music,
-		Youtube,
-		Database,
-		Settings,
-		Radio,
-		Search,
-		BarChart3,
-		Info,
-		ArrowUpCircle,
-		Globe,
-		Home,
-		Compass,
-		Users,
-		ShieldCheck,
-		HardDriveDownload,
-		Waypoints,
-		CalendarClock,
-		DownloadCloud,
-		Gift,
-		ShoppingBag,
-		Landmark,
-		Blocks,
-		PanelLeft
-	} from 'lucide-svelte';
+		settingsPages,
+		legacyTabMap,
+		DEFAULT_SETTINGS_PAGE,
+		resolvePage
+	} from '$lib/components/settings/settingsPages';
+	import { ArrowUpCircle, Youtube, Globe, HardDrive, HardDriveDownload } from 'lucide-svelte';
 	import JellyfinIcon from '$lib/components/JellyfinIcon.svelte';
 	import NavidromeIcon from '$lib/components/NavidromeIcon.svelte';
 	import PlexIcon from '$lib/components/PlexIcon.svelte';
 	import SpotifyIcon from '$lib/components/SpotifyIcon.svelte';
 
 	const integration = fromStore(integrationStore);
-
 	const updateCheckQuery = getUpdateCheckQuery();
 	const updateAvailable = $derived(updateCheckQuery.data?.update_available ?? false);
 
-	const connectionMap: Record<
-		string,
-		'jellyfin' | 'navidrome' | 'plex' | 'youtube' | 'localfiles'
-	> = {
-		jellyfin: 'jellyfin',
-		navidrome: 'navidrome',
-		plex: 'plex',
-		youtube: 'youtube'
-	};
-
-	let filter = $state('');
-
-	const tiers = [
-		{ id: 'setup', label: 'Setup', hint: 'Connect your sources' },
-		{ id: 'personalize', label: 'Personalize', hint: 'Tune your content' },
-		{ id: 'system', label: 'System', hint: 'Maintenance & account' }
-	];
-
-	const tabs = [
-		{ id: 'library', label: 'Library', tier: 'setup', icon: Music },
-		...(authStore.isAdmin
-			? [
-					{ id: 'free-music', label: 'Free Music', tier: 'setup', icon: Landmark },
-					{
-						id: 'download-client',
-						label: 'Download Client',
-						tier: 'setup',
-						icon: HardDriveDownload
-					},
-					{ id: 'indexers', label: 'Indexers', tier: 'setup', icon: Search },
-					{ id: 'lidarr-import', label: 'Lidarr Import', tier: 'setup', icon: DownloadCloud }
-				]
-			: []),
-		{ id: 'connect-apps', label: 'Connect Apps', tier: 'setup', icon: Waypoints },
-		{ id: 'jellyfin', label: 'Jellyfin', tier: 'setup', icon: JellyfinIcon },
-		{ id: 'navidrome', label: 'Navidrome', tier: 'setup', icon: NavidromeIcon },
-		{ id: 'plex', label: 'Plex', tier: 'setup', icon: PlexIcon },
-		{ id: 'youtube', label: 'YouTube', tier: 'setup', icon: Youtube },
-		...(authStore.isAdmin ? [{ id: 'lastfm', label: 'Last.fm', tier: 'setup', icon: Radio }] : []),
-		...(authStore.isAdmin
-			? [{ id: 'spotify', label: 'Spotify', tier: 'setup', icon: SpotifyIcon }]
-			: []),
-		...(authStore.isAdmin
-			? [{ id: 'events', label: 'Live Events', tier: 'setup', icon: CalendarClock }]
-			: []),
-		...(authStore.isAdmin
-			? [{ id: 'get-it', label: 'Get it', tier: 'setup', icon: ShoppingBag }]
-			: []),
-		{ id: 'settings', label: 'Release Types', tier: 'personalize', icon: Settings2 },
-		{ id: 'home', label: 'Home', tier: 'personalize', icon: Home },
-		{ id: 'discover', label: 'Discover', tier: 'personalize', icon: Compass },
-		{ id: 'sidebar', label: 'Sidebar', tier: 'personalize', icon: PanelLeft },
-		{ id: 'music-source', label: 'Music Source', tier: 'personalize', icon: BarChart3 },
-		{ id: 'cache', label: 'Cache', tier: 'system', icon: Database },
-		{ id: 'musicbrainz', label: 'MusicBrainz', tier: 'system', icon: Globe },
-		...(authStore.isAdmin
-			? [
-					{ id: 'users', label: 'Users', tier: 'system', icon: Users },
-					{ id: 'security', label: 'Security', tier: 'system', icon: ShieldCheck },
-					{ id: 'plugins', label: 'Plugins', tier: 'system', icon: Blocks },
-					{ id: 'wrapped', label: 'Wrapped API', tier: 'system', icon: Gift }
-				]
-			: []),
-		{ id: 'advanced', label: 'Advanced', tier: 'system', icon: Settings },
-		{ id: 'about', label: 'About', tier: 'system', icon: Info }
-	];
-	const requestedTab = page.url.searchParams.get('tab');
-	let activeTab = $state(
-		requestedTab && tabs.some((tab) => tab.id === requestedTab) ? requestedTab : 'library'
-	);
-
-	const normalizedFilter = $derived(filter.trim().toLowerCase());
-	function tabsForTier(tier: string) {
-		return tabs.filter(
-			(t) =>
-				t.tier === tier && (!normalizedFilter || t.label.toLowerCase().includes(normalizedFilter))
-		);
+	interface ConnectedSource {
+		id: string;
+		label: string;
+		icon: Component<{ class?: string }> | ComponentType;
+		page: string;
+		anchor: string;
+		connected: boolean | null;
 	}
-	const noMatches = $derived(
-		normalizedFilter.length > 0 && tiers.every((t) => tabsForTier(t.id).length === 0)
-	);
 
-	function selectTab(id: string) {
-		activeTab = id;
-		const url = new URL(page.url);
-		url.searchParams.set('tab', id);
+	const connectedSources = $derived<ConnectedSource[]>([
+		{
+			id: 'plex',
+			label: 'Plex',
+			icon: PlexIcon,
+			page: 'integrations',
+			anchor: 'plex',
+			connected: integration.current.plex
+		},
+		{
+			id: 'navidrome',
+			label: 'Navidrome',
+			icon: NavidromeIcon,
+			page: 'integrations',
+			anchor: 'navidrome',
+			connected: integration.current.navidrome
+		},
+		{
+			id: 'jellyfin',
+			label: 'Jellyfin',
+			icon: JellyfinIcon,
+			page: 'integrations',
+			anchor: 'jellyfin',
+			connected: integration.current.jellyfin
+		},
+		{
+			id: 'youtube',
+			label: 'YouTube',
+			icon: Youtube,
+			page: 'integrations',
+			anchor: 'youtube',
+			connected: integration.current.youtube
+		},
+		{
+			id: 'localfiles',
+			label: 'Local files',
+			icon: HardDrive,
+			page: 'library',
+			anchor: 'library',
+			connected: integration.current.localfiles
+		},
+		{
+			id: 'download-client',
+			label: 'Download client',
+			icon: HardDriveDownload,
+			page: 'downloads',
+			anchor: 'download-client',
+			connected: integration.current.download_client
+		},
+		{
+			id: 'musicbrainz',
+			label: 'MusicBrainz',
+			icon: Globe,
+			page: 'library',
+			anchor: 'musicbrainz',
+			connected: null
+		},
+		{
+			id: 'spotify',
+			label: 'Spotify',
+			icon: SpotifyIcon,
+			page: 'integrations',
+			anchor: 'spotify',
+			connected: null
+		}
+	]);
+
+	function initialPageId(): string {
+		const pageParam = page.url.searchParams.get('page');
+		if (pageParam && settingsPages.some((p) => p.id === pageParam)) return pageParam;
+		const tabParam = page.url.searchParams.get('tab');
+		if (tabParam) {
+			const mapped = legacyTabMap[tabParam];
+			if (mapped && mapped !== 'profile') return mapped.page;
+		}
+		return DEFAULT_SETTINGS_PAGE;
+	}
+
+	let activePageId = $state(initialPageId());
+	const activePage = $derived(resolvePage(activePageId));
+
+	function scrollToAnchor(anchor: string) {
+		void tick().then(() => {
+			document.getElementById(`section-${anchor}`)?.scrollIntoView({ block: 'start' });
+		});
+	}
+
+	function selectPage(id: string, anchor?: string) {
+		activePageId = id;
+		const url = new SvelteURL(page.url);
+		url.searchParams.delete('tab');
+		url.searchParams.set('page', id);
+		url.hash = '';
 		replaceState(url, {});
+		if (anchor) scrollToAnchor(anchor);
+	}
+
+	function handleMobileSelect(event: Event) {
+		selectPage((event.target as HTMLSelectElement).value);
 	}
 
 	onMount(() => {
 		integrationStore.ensureLoaded();
-	});
 
-	$effect(() => {
 		const tabParam = page.url.searchParams.get('tab');
-		if (tabParam && tabs.some((t) => t.id === tabParam)) {
-			activeTab = tabParam;
+		if (tabParam) {
+			const mapped = legacyTabMap[tabParam];
+			if (mapped === 'profile') {
+				goto('/profile', { replaceState: true });
+				return;
+			}
+			if (mapped) {
+				selectPage(mapped.page, mapped.anchor);
+				return;
+			}
 		}
+		const hash = page.url.hash?.slice(1);
+		if (hash) scrollToAnchor(hash);
 	});
 </script>
 
-<div class="min-h-screen bg-base-100">
-	<!-- Desktop is an app-style two-pane layout: the page itself doesn't scroll;
-	     the tab rail and the content pane each scroll independently. This is what
-	     keeps the wheel from being trapped by a hidden sidebar scroller when the
-	     tab list grows taller than the viewport. Mobile keeps natural page flow. -->
-	<div class="container mx-auto p-4 max-w-7xl lg:flex lg:h-[calc(100vh-4rem)] lg:flex-col">
+<div class="min-h-screen bg-surface">
+	<div class="container mx-auto max-w-7xl p-4 lg:flex lg:h-[calc(100vh-4rem)] lg:flex-col">
 		<div class="mb-6 lg:shrink-0">
-			<h1 class="text-3xl font-bold">Settings</h1>
-			<p class="text-base-content/70 mt-2">Manage your preferences and app settings.</p>
+			<h1 class="text-3xl font-bold text-fg">Settings</h1>
+			<p class="mt-2 text-fg-muted">Manage your preferences and app settings.</p>
 		</div>
 
-		<div class="flex flex-col lg:flex-row gap-6 lg:min-h-0 lg:flex-1">
-			<aside
-				class="scrollbar-hide w-full lg:w-80 lg:shrink-0 space-y-3 lg:min-h-0 lg:overflow-y-auto lg:pb-4"
+		<div class="mb-4 lg:hidden">
+			<label class="sr-only" for="settings-page-select">Settings page</label>
+			<select
+				id="settings-page-select"
+				class="w-full rounded-control border border-border bg-surface-raised px-3 py-2 text-fg"
+				value={activePageId}
+				onchange={handleMobileSelect}
 			>
-				<label class="relative block">
-					<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/40" />
-					<input
-						type="text"
-						bind:value={filter}
-						placeholder="Filter settings…"
-						class="input input-sm input-soft w-full pl-9"
-					/>
-				</label>
-
-				{#each tiers as tier (tier.id)}
-					{@const tierTabs = tabsForTier(tier.id)}
-					{#if tierTabs.length > 0}
-						<div
-							class="rounded-2xl border p-2 {tier.id === 'setup'
-								? 'border-primary/15 bg-base-200'
-								: tier.id === 'personalize'
-									? 'border-base-300/40 bg-base-200/70'
-									: 'border-base-300/30 bg-base-200/40'}"
-						>
-							<div class="px-3 pb-1 pt-2">
-								<h3
-									class="text-xs font-bold uppercase tracking-widest {tier.id === 'setup'
-										? 'text-accent'
-										: tier.id === 'personalize'
-											? 'text-base-content/55'
-											: 'text-base-content/35'}"
-								>
-									{tier.label}
-								</h3>
-								<p class="text-[10px] text-base-content/35">{tier.hint}</p>
-							</div>
-							<ul class="menu gap-0.5 p-0">
-								{#each tierTabs as tab (tab.id)}
-									{@const Icon = tab.icon}
-									{@const isActive = activeTab === tab.id}
-									<li>
-										<button
-											class="group justify-start gap-3 rounded-xl text-base transition-all {isActive
-												? 'glow-primary-soft bg-primary/15 font-semibold text-primary'
-												: 'text-base-content/70 hover:bg-base-300/40'}"
-											onclick={() => selectTab(tab.id)}
-										>
-											<Icon
-												class="h-5 w-5 {isActive
-													? 'text-primary'
-													: 'text-base-content/50 group-hover:text-base-content/80'}"
-											/>
-											<span>{tab.label}</span>
-											{#if tab.id in connectionMap}
-												{@const storeKey = connectionMap[tab.id]}
-												{@const connected = integration.current[storeKey]}
-												<span
-													class="ml-auto h-2 w-2 rounded-full {connected
-														? 'bg-success ring-2 ring-success/30'
-														: 'bg-base-content/20'}"
-												>
-													<span class="sr-only">{connected ? 'Connected' : 'Not connected'}</span>
-												</span>
-											{/if}
-											{#if tab.id === 'about' && updateAvailable}
-												<span
-													class="ml-auto flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent"
-												>
-													<ArrowUpCircle class="h-3 w-3" />
-													Update
-												</span>
-											{/if}
-										</button>
-									</li>
-								{/each}
-							</ul>
-						</div>
-					{/if}
+				{#each settingsPages as p (p.id)}
+					<option value={p.id}>{p.label}</option>
 				{/each}
+			</select>
+			<a href="/profile" class="mt-2 inline-block text-sm text-fg-subtle hover:text-accent">
+				Looking for Home/Discover/Sidebar preferences? They live in your profile →
+			</a>
+		</div>
 
-				{#if noMatches}
-					<p class="px-3 py-2 text-sm text-base-content/40">No settings match "{filter}".</p>
-				{/if}
+		<div class="flex flex-col gap-6 lg:min-h-0 lg:flex-1 lg:flex-row">
+			<aside class="hidden w-64 shrink-0 lg:block lg:overflow-y-auto lg:pb-4">
+				<nav class="space-y-1">
+					{#each settingsPages as p (p.id)}
+						{@const Icon = p.icon}
+						{@const isActive = activePageId === p.id}
+						<button
+							type="button"
+							class="flex w-full items-center gap-3 rounded-control px-3 py-2 text-left text-sm transition-colors {isActive
+								? 'bg-accent/15 font-semibold text-accent'
+								: 'text-fg-muted hover:bg-surface-hover hover:text-fg'}"
+							onclick={() => selectPage(p.id)}
+						>
+							<Icon class="h-4 w-4 shrink-0" />
+							<span>{p.label}</span>
+							{#if p.id === 'about' && updateAvailable}
+								<span
+									class="ml-auto flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent"
+								>
+									<ArrowUpCircle class="h-3 w-3" />
+									Update
+								</span>
+							{/if}
+						</button>
+					{/each}
+				</nav>
+				<a
+					href="/profile"
+					class="mt-4 block rounded-control px-3 py-2 text-sm text-fg-subtle hover:bg-surface-hover hover:text-fg"
+				>
+					Home/Discover/Sidebar preferences moved to your profile →
+				</a>
 			</aside>
 
-			<main class="flex-1 min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pb-4">
-				<SettingsTabContent tab={activeTab} isAdmin={authStore.isAdmin} />
+			<main class="min-w-0 flex-1 space-y-8 lg:min-h-0 lg:overflow-y-auto lg:pb-8">
+				<p class="text-sm text-fg-subtle">{activePage.description}</p>
+
+				{#if activePage.id === 'integrations'}
+					<section class="rounded-card border border-border bg-surface-raised p-4 shadow-card">
+						<h2 class="mb-3 text-lg font-semibold text-fg">Connected sources</h2>
+						<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+							{#each connectedSources as source (source.id)}
+								{@const Icon = source.icon}
+								<button
+									type="button"
+									class="flex items-center gap-3 rounded-control border border-border bg-surface px-3 py-2 text-left hover:bg-surface-hover"
+									onclick={() => selectPage(source.page, source.anchor)}
+								>
+									<Icon class="h-5 w-5 shrink-0 text-fg-muted" />
+									<span class="flex-1 text-sm text-fg">{source.label}</span>
+									<span
+										class="h-2 w-2 rounded-full {source.connected === true
+											? 'bg-success'
+											: source.connected === false
+												? 'bg-fg-subtle/40'
+												: 'bg-fg-subtle/20'}"
+									>
+										<span class="sr-only">
+											{source.connected === true
+												? 'Connected'
+												: source.connected === false
+													? 'Not connected'
+													: 'Status unknown'}
+										</span>
+									</span>
+								</button>
+							{/each}
+						</div>
+					</section>
+				{/if}
+
+				{#each activePage.sections as section (section.id)}
+					<section id={`section-${section.id}`}>
+						<h2 class="mb-3 text-lg font-semibold text-fg">{section.label}</h2>
+						<SettingsTabContent tab={section.id} isAdmin={authStore.isAdmin} />
+					</section>
+				{/each}
 			</main>
 		</div>
 	</div>

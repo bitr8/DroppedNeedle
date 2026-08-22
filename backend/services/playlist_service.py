@@ -336,6 +336,14 @@ class PlaylistService:
             raise PlaylistNotFoundError(f"Playlist {playlist_id} not found")
         return PlaylistSummaryView(record=summary, is_owner=True, owner_name=None)
 
+    async def get_spotify_synced_playlists(self) -> list[PlaylistRecord]:
+        return await self._repo.get_spotify_synced_playlists()
+
+    async def detach_spotify(self, playlist_id: str, requesting: UserRecord) -> bool:
+        """Stop mirroring: keep the playlist and its tracks, drop the link (§8.5)."""
+        await self._load_owned_or_raise(playlist_id, requesting)
+        return await self._repo.detach_spotify(playlist_id)
+
     async def delete_playlist(self, playlist_id: str, requesting: UserRecord) -> None:
         # Owner deletes own; an admin may delete any playlist (owner-cleanup, D4).
         playlist = await self._repo.get_playlist(playlist_id)

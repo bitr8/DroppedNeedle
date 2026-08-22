@@ -14,6 +14,8 @@ class PlaylistRecord:
     __slots__ = (
         "id", "name", "cover_image_path", "created_at", "updated_at",
         "source_ref", "user_id", "is_public", "spotify_snapshot_id",
+        "spotify_synced_at", "spotify_sync_status", "spotify_sync_error",
+        "spotify_missing_count", "spotify_synced_track_hash",
     )
 
     def __init__(
@@ -27,6 +29,11 @@ class PlaylistRecord:
         user_id: Optional[str] = None,
         is_public: bool = False,
         spotify_snapshot_id: Optional[str] = None,
+        spotify_synced_at: Optional[str] = None,
+        spotify_sync_status: Optional[str] = None,
+        spotify_sync_error: Optional[str] = None,
+        spotify_missing_count: int = 0,
+        spotify_synced_track_hash: Optional[str] = None,
     ):
         self.id = id
         self.name = name
@@ -37,13 +44,19 @@ class PlaylistRecord:
         self.user_id = user_id
         self.is_public = is_public
         self.spotify_snapshot_id = spotify_snapshot_id
+        self.spotify_synced_at = spotify_synced_at
+        self.spotify_sync_status = spotify_sync_status
+        self.spotify_sync_error = spotify_sync_error
+        self.spotify_missing_count = spotify_missing_count
+        self.spotify_synced_track_hash = spotify_synced_track_hash
 
 
 class PlaylistSummaryRecord:
     __slots__ = (
         "id", "name", "cover_image_path", "created_at", "updated_at",
         "track_count", "total_duration", "cover_urls", "source_ref",
-        "user_id", "is_public",
+        "user_id", "is_public", "spotify_sync_status", "spotify_synced_at",
+        "spotify_missing_count",
     )
 
     def __init__(
@@ -59,6 +72,9 @@ class PlaylistSummaryRecord:
         source_ref: Optional[str] = None,
         user_id: Optional[str] = None,
         is_public: bool = False,
+        spotify_sync_status: Optional[str] = None,
+        spotify_synced_at: Optional[str] = None,
+        spotify_missing_count: int = 0,
     ):
         self.id = id
         self.name = name
@@ -71,6 +87,9 @@ class PlaylistSummaryRecord:
         self.source_ref = source_ref
         self.user_id = user_id
         self.is_public = is_public
+        self.spotify_sync_status = spotify_sync_status
+        self.spotify_synced_at = spotify_synced_at
+        self.spotify_missing_count = spotify_missing_count
 
 
 class PlaylistTrackRecord:
@@ -193,13 +212,15 @@ class PlaylistRepository:
             try:
                 conn.execute("ALTER TABLE playlist_tracks ADD COLUMN disc_number INTEGER")
                 conn.commit()
-            except sqlite3.OperationalError:
-                pass
+            except sqlite3.OperationalError as exc:
+                if "duplicate column" not in str(exc):
+                    raise
             try:
                 conn.execute("ALTER TABLE playlist_tracks ADD COLUMN plex_rating_key TEXT")
                 conn.commit()
-            except sqlite3.OperationalError:
-                pass
+            except sqlite3.OperationalError as exc:
+                if "duplicate column" not in str(exc):
+                    raise
             # links a compat entry to its owned library file so the shims can stream it
             # (NULL for legacy outbound entries). Plain column, no FK: playlist dbs can be
             # isolated from library_files, which soft-deletes anyway; the shim resolves a
@@ -207,8 +228,9 @@ class PlaylistRepository:
             try:
                 conn.execute("ALTER TABLE playlist_tracks ADD COLUMN library_file_id TEXT")
                 conn.commit()
-            except sqlite3.OperationalError:
-                pass
+            except sqlite3.OperationalError as exc:
+                if "duplicate column" not in str(exc):
+                    raise
             # backfill: web-UI local entries predate the add_tracks auto-link and
             # showed as empty playlists in compat clients (#181). For local sources
             # track_source_id IS the library file id ('howler' = legacy local slug).
@@ -229,26 +251,43 @@ class PlaylistRepository:
             try:
                 conn.execute("ALTER TABLE playlists ADD COLUMN source_ref TEXT")
                 conn.commit()
-            except sqlite3.OperationalError:
-                pass
+            except sqlite3.OperationalError as exc:
+                if "duplicate column" not in str(exc):
+                    raise
             # Per-user ownership + visibility (D4). user_id is nullable in DDL (an
             # additive ALTER cannot be NOT NULL on a populated table); it is backfilled
             # to the first admin and treated NOT NULL by app logic (AMU-1).
             try:
                 conn.execute("ALTER TABLE playlists ADD COLUMN user_id TEXT")
                 conn.commit()
-            except sqlite3.OperationalError:
-                pass
+            except sqlite3.OperationalError as exc:
+                if "duplicate column" not in str(exc):
+                    raise
             try:
                 conn.execute("ALTER TABLE playlists ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0")
                 conn.commit()
-            except sqlite3.OperationalError:
-                pass
+            except sqlite3.OperationalError as exc:
+                if "duplicate column" not in str(exc):
+                    raise
             try:
                 conn.execute("ALTER TABLE playlists ADD COLUMN spotify_snapshot_id TEXT")
                 conn.commit()
-            except sqlite3.OperationalError:
-                pass
+            except sqlite3.OperationalError as exc:
+                if "duplicate column" not in str(exc):
+                    raise
+            for _col, _type in (
+                ("spotify_synced_at", "TEXT"),
+                ("spotify_sync_status", "TEXT"),
+                ("spotify_sync_error", "TEXT"),
+                ("spotify_missing_count", "INTEGER NOT NULL DEFAULT 0"),
+                ("spotify_synced_track_hash", "TEXT"),
+            ):
+                try:
+                    conn.execute(f"ALTER TABLE playlists ADD COLUMN {_col} {_type}")
+                    conn.commit()
+                except sqlite3.OperationalError as exc:
+                    if "duplicate column" not in str(exc):
+                        raise
             # Replace the GLOBAL source_ref uniqueness with a PER-USER one so two users
             # can each import the same source playlist without colliding (D4). SQLite
             # treats NULL as distinct in a unique index, so pre-backfill (NULL, source_ref)
@@ -334,6 +373,64 @@ class PlaylistRepository:
             )
             conn.commit()
 
+    def set_spotify_sync_state(
+        self,
+        playlist_id: str,
+        status: str,
+        snapshot_id: Optional[str] = _UNSET,
+        synced_at: Optional[str] = _UNSET,
+        error: Optional[str] = _UNSET,
+        missing_count: Optional[int] = None,
+        track_hash: Optional[str] = _UNSET,
+    ) -> None:
+        sets = ["spotify_sync_status = ?"]
+        params: list = [status]
+        for column, value in (
+            ("spotify_snapshot_id", snapshot_id),
+            ("spotify_synced_at", synced_at),
+            ("spotify_sync_error", error),
+            ("spotify_synced_track_hash", track_hash),
+        ):
+            if value is not _UNSET:
+                sets.append(f"{column} = ?")
+                params.append(value)
+        if missing_count is not None:
+            sets.append("spotify_missing_count = ?")
+            params.append(missing_count)
+        params.append(playlist_id)
+        with self._write_lock:
+            conn = self._get_connection()
+            conn.execute(
+                f"UPDATE playlists SET {', '.join(sets)} WHERE id = ?", params
+            )
+            conn.commit()
+
+    def detach_spotify(self, playlist_id: str) -> bool:
+        """Drop the Spotify link, keep the playlist. One-way: source_ref is cleared so a
+        later re-import creates a second, synced copy."""
+        with self._write_lock:
+            conn = self._get_connection()
+            cursor = conn.execute(
+                "UPDATE playlists SET source_ref = NULL, spotify_snapshot_id = NULL, "
+                "spotify_sync_error = NULL, spotify_synced_track_hash = NULL, "
+                "spotify_sync_status = 'detached', updated_at = ? "
+                "WHERE id = ? AND source_ref LIKE 'spotify:%'",
+                (datetime.now(timezone.utc).isoformat(), playlist_id),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def count_unresolved_tracks(self, playlist_id: str) -> int:
+        conn = self._get_connection()
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM playlist_tracks WHERE playlist_id = ? "
+            "AND COALESCE(source_type, '') = '' "
+            "AND COALESCE(library_file_id, '') = '' "
+            "AND COALESCE(available_sources, '[]') IN ('', '[]')",
+            (playlist_id,),
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
     def get_spotify_synced_playlists(self) -> list[PlaylistRecord]:
         conn = self._get_connection()
         rows = conn.execute(
@@ -382,6 +479,9 @@ class PlaylistRepository:
                 source_ref=row["source_ref"],
                 user_id=row["user_id"] if "user_id" in row.keys() else None,
                 is_public=bool(row["is_public"]) if "is_public" in row.keys() else False,
+                spotify_sync_status=row["spotify_sync_status"] if "spotify_sync_status" in row.keys() else None,
+                spotify_synced_at=row["spotify_synced_at"] if "spotify_synced_at" in row.keys() else None,
+                spotify_missing_count=row["spotify_missing_count"] if "spotify_missing_count" in row.keys() else 0,
             ))
         return results
 
@@ -420,6 +520,9 @@ class PlaylistRepository:
             source_ref=row["source_ref"] if "source_ref" in row.keys() else None,
             user_id=row["user_id"] if "user_id" in row.keys() else None,
             is_public=bool(row["is_public"]) if "is_public" in row.keys() else False,
+            spotify_sync_status=row["spotify_sync_status"] if "spotify_sync_status" in row.keys() else None,
+            spotify_synced_at=row["spotify_synced_at"] if "spotify_synced_at" in row.keys() else None,
+            spotify_missing_count=row["spotify_missing_count"] if "spotify_missing_count" in row.keys() else 0,
         )
 
     def update_playlist(
@@ -951,6 +1054,11 @@ class PlaylistRepository:
             user_id=row["user_id"] if "user_id" in keys else None,
             is_public=bool(row["is_public"]) if "is_public" in keys else False,
             spotify_snapshot_id=row["spotify_snapshot_id"] if "spotify_snapshot_id" in keys else None,
+            spotify_synced_at=row["spotify_synced_at"] if "spotify_synced_at" in keys else None,
+            spotify_sync_status=row["spotify_sync_status"] if "spotify_sync_status" in keys else None,
+            spotify_sync_error=row["spotify_sync_error"] if "spotify_sync_error" in keys else None,
+            spotify_missing_count=row["spotify_missing_count"] if "spotify_missing_count" in keys else 0,
+            spotify_synced_track_hash=row["spotify_synced_track_hash"] if "spotify_synced_track_hash" in keys else None,
         )
 
     @classmethod

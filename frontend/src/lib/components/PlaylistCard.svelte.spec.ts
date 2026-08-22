@@ -17,7 +17,10 @@ const basePlaylist: PlaylistSummary = {
 	is_public: false,
 	is_owner: true,
 	owner_name: null,
-	is_redacted: false
+	is_redacted: false,
+	spotify_sync_status: null,
+	spotify_synced_at: null,
+	spotify_missing_count: 0
 };
 
 function renderCard(playlist: PlaylistSummary = basePlaylist) {

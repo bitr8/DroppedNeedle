@@ -1,6 +1,9 @@
 import { page } from '@vitest/browser/context';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
+
+import { authStore } from '$lib/stores/authStore.svelte';
+import type { AuthUser } from '$lib/stores/authStore.svelte';
 
 type HydrateOptions = {
 	cache: unknown;
@@ -333,6 +336,21 @@ function jsonResponse(payload: unknown, status = 200): Response {
 		headers: { 'Content-Type': 'application/json' }
 	});
 }
+
+function adminUser(): AuthUser {
+	return {
+		id: 'u-1',
+		display_name: 'Admin',
+		role: 'admin',
+		email: null,
+		avatar_url: null,
+		username: 'admin',
+		username_display: 'admin',
+		providers: ['local']
+	};
+}
+
+afterEach(() => authStore.clear());
 
 describe('album detail page track rendering', () => {
 	beforeEach(() => {
@@ -803,6 +821,8 @@ describe('album detail page track rendering', () => {
 			}))
 		};
 
+		authStore.setUser(adminUser());
+
 		render(AlbumPage, {
 			props: { data: { albumId } }
 		} as Parameters<typeof render<typeof AlbumPage>>[1]);
@@ -822,6 +842,10 @@ describe('album detail page track rendering', () => {
 		await expect
 			.element(page.getByText('No working source found on Soulseek'))
 			.not.toBeInTheDocument();
+
+		const deepLink = page.getByRole('link', { name: 'Organizer hold needs a decision' });
+		await expect.element(deepLink).toBeVisible();
+		await expect.element(deepLink).toHaveAttribute('href', '/downloads?tab=queue&highlight=task-1');
 	});
 
 	it('shows no download strip for a settled album with no active download', async () => {

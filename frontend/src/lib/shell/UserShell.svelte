@@ -20,18 +20,22 @@
 </script>
 
 <header
-	class="droppedneedle-topbar sticky top-0 z-50 flex items-center gap-4 border-b border-border bg-surface/95 px-4 backdrop-blur"
+	class="droppedneedle-topbar sticky top-0 z-50 flex items-center gap-3 px-4 md:grid md:grid-cols-[1fr_auto_1fr] md:px-6"
 >
-	<a href="/" aria-label="Home" class="shrink-0">
-		<img src="/logo_wide.png" alt="DroppedNeedle" class="hidden h-7 md:block" />
+	<a
+		href="/"
+		aria-label="Home"
+		class="flex shrink-0 items-center rounded-control focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring md:justify-self-start"
+	>
+		<img src="/logo_wide.png" alt="DroppedNeedle" class="hidden h-6 md:block" />
 		<img src="/logo_icon.png" alt="DroppedNeedle" class="h-7 md:hidden" />
 	</a>
-	<nav class="hidden items-center gap-1 md:flex" aria-label="Primary navigation">
+	<nav class="hidden items-center gap-1 self-stretch md:flex" aria-label="Primary navigation">
 		{#each NAV as item (item.href)}
 			<a
 				href={item.href}
 				aria-current={isActive(item.href) ? 'page' : undefined}
-				class="rounded-control px-3 py-2 text-sm font-semibold text-fg-muted hover:text-fg aria-[current=page]:bg-accent/10 aria-[current=page]:text-accent"
+				class="droppedneedle-topbar__link"
 			>
 				{item.label}
 			</a>
@@ -41,12 +45,12 @@
 		href="/profile"
 		aria-label="Profile"
 		aria-current={isActive('/profile') ? 'page' : undefined}
-		class="ml-auto grid size-9 place-items-center rounded-full text-fg-muted hover:bg-surface-hover hover:text-fg aria-[current=page]:text-accent"
+		class="ml-auto grid size-9 shrink-0 place-items-center overflow-hidden rounded-full text-fg-muted ring-1 ring-hairline transition-colors duration-150 ease-standard hover:bg-surface-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-[current=page]:text-accent aria-[current=page]:ring-accent md:justify-self-end"
 	>
 		{#if authStore.user?.avatar_url}
-			<img src={authStore.user.avatar_url} alt="" class="size-7 rounded-full object-cover" />
+			<img src={authStore.user.avatar_url} alt="" class="size-full object-cover" />
 		{:else}
-			<UserRound class="size-6" aria-hidden="true" />
+			<UserRound class="size-5" aria-hidden="true" />
 		{/if}
 	</a>
 </header>

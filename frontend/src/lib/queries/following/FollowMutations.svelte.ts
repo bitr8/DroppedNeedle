@@ -48,8 +48,12 @@ export const createSetFollowMutation = (getMbid: () => string) =>
 			await setQueryDataWithPersister<FollowStatus>(key, optimistic);
 			return { prev };
 		},
-		onError: (_err, _followed, ctx) => {
+		onError: (_err, followed, ctx) => {
 			if (ctx) void setQueryDataWithPersister<FollowStatus>(statusKey(getMbid()), ctx.prev);
+			toastStore.show({
+				message: followed ? "Couldn't follow this artist." : "Couldn't unfollow this artist.",
+				type: 'error'
+			});
 		},
 		onSuccess: (data) => {
 			void setQueryDataWithPersister<FollowStatus>(statusKey(getMbid()), data);
@@ -116,6 +120,9 @@ export const createUnfollowMutation = () =>
 		onSuccess: (data, mbid) => {
 			void setQueryDataWithPersister<FollowStatus>(statusKey(mbid), data);
 		},
+		onError: () => {
+			toastStore.show({ message: "Couldn't unfollow this artist.", type: 'error' });
+		},
 		onSettled: () => {
 			void invalidateFollowedArtists();
 		}
@@ -144,6 +151,7 @@ export const createSetAutoDownloadMutation = (getMbid: () => string) =>
 		},
 		onError: (_err, _enabled, ctx) => {
 			if (ctx) void setQueryDataWithPersister<FollowStatus>(statusKey(getMbid()), ctx.prev);
+			toastStore.show({ message: "Couldn't change auto-download for this artist.", type: 'error' });
 		},
 		onSuccess: (data, enabled) => {
 			void setQueryDataWithPersister<FollowStatus>(statusKey(getMbid()), data);

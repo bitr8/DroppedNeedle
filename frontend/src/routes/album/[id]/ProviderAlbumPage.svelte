@@ -214,11 +214,15 @@
 						getTrackContextMenuItems={state.getTrackContextMenuItems}
 					/>
 
-					<UnmatchedFilesSection
-						orphans={state.libraryOrphans}
-						albumMbid={album.musicbrainz_id}
-						canRemove={authStore.isTrusted}
-					/>
+					{#if authStore.isAdmin}
+						<UnmatchedFilesSection
+							orphans={state.libraryOrphans}
+							albumMbid={album.musicbrainz_id}
+							canRemove={authStore.isAdmin}
+						/>
+					{:else if state.libraryOrphans.length > 0}
+						<p class="text-sm text-fg-muted">Rob's still tidying this one up.</p>
+					{/if}
 
 					<AddToPlaylistModal bind:this={state.playlistModalRef} />
 				</div>

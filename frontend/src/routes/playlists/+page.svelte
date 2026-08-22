@@ -13,7 +13,7 @@
 	import { createCreatePlaylistMutation } from '$lib/queries/playlists/PlaylistMutations.svelte';
 	import { ListMusic, Plus, Lock } from 'lucide-svelte';
 	import SpotifyIcon from '$lib/components/SpotifyIcon.svelte';
-	import PlaylistCard from '$lib/components/PlaylistCard.svelte';
+	import PlaylistCard from '$lib/components/playlists/PlaylistCard.svelte';
 	import RedactedPlaylistCard from '$lib/components/RedactedPlaylistCard.svelte';
 	import PlaylistCardSkeleton from '$lib/components/PlaylistCardSkeleton.svelte';
 
@@ -96,6 +96,11 @@
 					<SpotifyIcon class="h-3.5 w-3.5" />
 					Import from Spotify
 				</a>
+			{:else}
+				<a href="/profile#connections" class="btn btn-ghost btn-sm gap-1.5">
+					<SpotifyIcon class="h-3.5 w-3.5" />
+					Connect Spotify
+				</a>
 			{/if}
 			<button
 				class="btn btn-accent btn-sm"
@@ -175,7 +180,7 @@
 				</h2>
 				<div class={gridClass}>
 					{#each myPlaylists as playlist (playlist.id)}
-						<PlaylistCard {playlist} ondelete={handleCardDelete} />
+						<PlaylistCard {playlist} ondelete={handleCardDelete} onsyncchange={handleCardDelete} />
 					{/each}
 				</div>
 			</section>

@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { Pause, Play, Trash2, TriangleAlert, X } from 'lucide-svelte';
+	import { Pause, Play, Trash2, TriangleAlert } from 'lucide-svelte';
 
 	import { API } from '$lib/constants';
+	import ConfirmModal from '$lib/components/kit/ConfirmModal.svelte';
 	import { removeLibraryTrack } from '$lib/queries/library/LibraryMutations.svelte';
 	import { formatCountdown } from '$lib/queries/downloads/downloadStatus';
 	import { toastStore } from '$lib/stores/toast';
@@ -16,21 +17,29 @@
 	let { orphans, albumMbid, canRemove = false }: Props = $props();
 
 	const remove = removeLibraryTrack();
-	// two-step inline confirm: first click arms THIS row, second click removes
-	let confirmingId = $state<string | null>(null);
+	let confirmTarget = $state<LibraryTrack | null>(null);
+	let confirmOpen = $state(false);
 
-	function handleRemove(file: LibraryTrack): void {
-		if (confirmingId !== file.id) {
-			confirmingId = file.id;
-			return;
-		}
-		confirmingId = null;
+	function requestRemove(file: LibraryTrack): void {
+		confirmTarget = file;
+		confirmOpen = true;
+	}
+
+	function confirmRemove(): void {
+		if (!confirmTarget) return;
+		const file = confirmTarget;
 		if (activeId === file.id) stopPreview();
 		remove.mutate(
 			{ fileId: file.id, albumMbid },
 			{
-				onSuccess: () => toastStore.show({ message: 'File removed', type: 'success' }),
-				onError: () => toastStore.show({ message: "Couldn't remove this file", type: 'error' })
+				onSuccess: () => {
+					toastStore.show({ message: 'File removed', type: 'success' });
+					confirmOpen = false;
+				},
+				onError: () => {
+					toastStore.show({ message: "Couldn't remove this file", type: 'error' });
+					confirmOpen = false;
+				}
 			}
 		);
 	}
@@ -126,34 +135,14 @@
 								Doesn't match
 							</span>
 							{#if canRemove}
-								{#if confirmingId === file.id}
-									<div class="flex items-center gap-1">
-										<button
-											class="btn btn-xs btn-error gap-1"
-											onclick={() => handleRemove(file)}
-											disabled={remove.isPending}
-										>
-											<Trash2 class="h-3.5 w-3.5" />
-											Remove file
-										</button>
-										<button
-											class="btn btn-xs btn-ghost"
-											aria-label="Keep this file"
-											onclick={() => (confirmingId = null)}
-										>
-											<X class="h-3.5 w-3.5" />
-										</button>
-									</div>
-								{:else}
-									<button
-										class="btn btn-xs btn-ghost text-error gap-1"
-										onclick={() => handleRemove(file)}
-										disabled={remove.isPending}
-									>
-										<Trash2 class="h-3.5 w-3.5" />
-										Remove
-									</button>
-								{/if}
+								<button
+									class="btn btn-xs btn-ghost text-error gap-1"
+									onclick={() => requestRemove(file)}
+									disabled={remove.isPending}
+								>
+									<Trash2 class="h-3.5 w-3.5" />
+									Remove
+								</button>
 							{/if}
 						</div>
 						{#if activeId === file.id}
@@ -191,4 +180,16 @@
 		ontimeupdate={() => (currentTime = audioEl?.currentTime ?? 0)}
 		onloadedmetadata={() => (mediaDuration = audioEl?.duration ?? 0)}
 	></audio>
+
+	<ConfirmModal
+		bind:open={confirmOpen}
+		title="Remove this file?"
+		danger
+		confirmLabel="Remove file"
+		pending={remove.isPending}
+		onconfirm={confirmRemove}
+	>
+		{confirmTarget ? basename(confirmTarget.file_path) : 'This file'} will be permanently deleted from
+		disk. This can't be undone.
+	</ConfirmModal>
 {/if}

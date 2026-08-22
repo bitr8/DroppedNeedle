@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { colors } from '$lib/colors';
+	import { authStore } from '$lib/stores/authStore.svelte';
 	import ArtistHeaderSkeleton from '$lib/components/ArtistHeaderSkeleton.svelte';
 	import AlbumGridSkeleton from '$lib/components/AlbumGridSkeleton.svelte';
 	import ArtistWhereToBuy from '$lib/components/ArtistWhereToBuy.svelte';
@@ -318,7 +319,7 @@
 					releases={[...releases.albums, ...releases.eps, ...releases.singles]}
 				/>
 
-				{#if downloadableReleaseCount > 0}
+				{#if authStore.isTrusted && downloadableReleaseCount > 0}
 					<div class="flex justify-center sm:justify-start">
 						<button class="btn btn-accent btn-sm gap-1.5" onclick={() => openDiscographyModal()}>
 							<Download class="h-4 w-4" />
@@ -390,7 +391,9 @@
 							onRequest={handleRequest}
 							onRemoved={handleReleaseRemoved}
 							onToggleCollapse={() => (albumsCollapsed = !albumsCollapsed)}
-							onDownloadAll={() => openSectionDownloadModal(releases.albums, 'Album')}
+							onDownloadAll={authStore.isTrusted
+								? () => openSectionDownloadModal(releases.albums, 'Album')
+								: undefined}
 						/>
 					</section>
 				{/if}
@@ -407,7 +410,9 @@
 							onRequest={handleRequest}
 							onRemoved={handleReleaseRemoved}
 							onToggleCollapse={() => (epsCollapsed = !epsCollapsed)}
-							onDownloadAll={() => openSectionDownloadModal(releases.eps, 'EP')}
+							onDownloadAll={authStore.isTrusted
+								? () => openSectionDownloadModal(releases.eps, 'EP')
+								: undefined}
 						/>
 					</section>
 				{/if}
@@ -424,7 +429,9 @@
 							onRequest={handleRequest}
 							onRemoved={handleReleaseRemoved}
 							onToggleCollapse={() => (singlesCollapsed = !singlesCollapsed)}
-							onDownloadAll={() => openSectionDownloadModal(releases.singles, 'Single')}
+							onDownloadAll={authStore.isTrusted
+								? () => openSectionDownloadModal(releases.singles, 'Single')
+								: undefined}
 						/>
 					</section>
 				{/if}

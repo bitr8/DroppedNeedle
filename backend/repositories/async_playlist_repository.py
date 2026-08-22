@@ -38,6 +38,17 @@ class AsyncPlaylistRepository:
     async def update_spotify_snapshot(self, playlist_id: str, snapshot_id: str) -> None:
         await asyncio.to_thread(self._repo.update_spotify_snapshot, playlist_id, snapshot_id)
 
+    async def set_spotify_sync_state(self, playlist_id: str, status: str, **fields) -> None:
+        await asyncio.to_thread(
+            self._repo.set_spotify_sync_state, playlist_id, status, **fields
+        )
+
+    async def detach_spotify(self, playlist_id: str) -> bool:
+        return await asyncio.to_thread(self._repo.detach_spotify, playlist_id)
+
+    async def count_unresolved_tracks(self, playlist_id: str) -> int:
+        return await asyncio.to_thread(self._repo.count_unresolved_tracks, playlist_id)
+
     async def get_spotify_synced_playlists(self) -> list[PlaylistRecord]:
         return await asyncio.to_thread(self._repo.get_spotify_synced_playlists)
 

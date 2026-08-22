@@ -86,7 +86,7 @@
 			</p>
 
 			<p class="mt-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-warning">
-				{#if ladder}Next spin · retry {ladder.attempt} of {ladder.total}{:else}Retrying{/if}
+				{#if ladder}Waiting · retry {ladder.attempt} of {ladder.total}{:else}Retrying{/if}
 			</p>
 
 			{#if ladder}

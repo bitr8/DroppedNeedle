@@ -4,24 +4,27 @@
 	let { state, label }: { state: WorkState; label?: string } = $props();
 
 	const TONE: Record<WorkState, string> = {
-		running: 'bg-info/15 text-info',
-		queued: 'bg-fg/10 text-fg-muted',
-		paused: 'bg-fg/10 text-fg-muted',
-		waiting: 'bg-fg/10 text-fg-muted',
-		attention: 'bg-warning/15 text-warning',
-		done: 'bg-success/15 text-success',
-		failed: 'bg-danger/15 text-danger'
+		running: 'text-info',
+		queued: 'text-fg-muted',
+		paused: 'text-fg-muted',
+		waiting: 'text-fg-muted',
+		attention: 'text-warning',
+		done: 'text-success',
+		failed: 'text-danger'
 	};
 </script>
 
 <span
-	class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap {TONE[
+	class="inline-flex h-6 items-center gap-1.5 rounded-full bg-current/10 px-2.5 text-xs font-semibold whitespace-nowrap ring-1 ring-current/20 ring-inset {TONE[
 		state
 	]}"
 	data-state={state}
 >
 	{#if state === 'running'}
-		<span class="size-1.5 rounded-full bg-current animate-pulse" aria-hidden="true"></span>
+		<span
+			class="size-1.5 animate-pulse rounded-full bg-current motion-reduce:animate-none"
+			aria-hidden="true"
+		></span>
 	{/if}
 	{label ?? WORK_STATE_LABEL[state]}
 </span>

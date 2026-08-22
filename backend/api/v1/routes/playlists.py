@@ -21,12 +21,15 @@ from api.v1.schemas.playlists import (
     ReorderTrackResponse,
     ResolveSourcesResponse,
     SetPlaylistPublicRequest,
+    SpotifySyncPlaylistRow,
+    SpotifySyncStatusResponse,
     UpdatePlaylistRequest,
     UpdateTrackRequest,
 )
 from api.v1.schemas.request import BatchRequestResponse
 from core.dependencies import JellyfinLibraryServiceDep, LocalFilesServiceDep, NavidromeLibraryServiceDep, PlexLibraryServiceDep, PlaylistServiceDep, get_navidrome_folder_scope_service, get_request_service
 from core.dependencies.type_aliases import CurrentUserDep
+from middleware import CurrentAdminDep
 from core.exceptions import PlaylistNotFoundError
 from infrastructure.msgspec_fastapi import MsgSpecBody, MsgSpecRoute
 from services.playlist_service import (
@@ -124,6 +127,9 @@ def _summary_view_to_response(
         is_public=s.is_public,
         is_owner=view.is_owner,
         owner_name=view.owner_name,
+        spotify_sync_status=s.spotify_sync_status,
+        spotify_synced_at=s.spotify_synced_at,
+        spotify_missing_count=s.spotify_missing_count,
     )
 
 
@@ -147,6 +153,10 @@ def _detail_to_response(
         is_public=playlist.is_public,
         is_owner=is_owner,
         owner_name=owner_name,
+        spotify_sync_status=getattr(playlist, "spotify_sync_status", None),
+        spotify_synced_at=getattr(playlist, "spotify_synced_at", None),
+        spotify_missing_count=getattr(playlist, "spotify_missing_count", 0),
+        spotify_sync_error=getattr(playlist, "spotify_sync_error", None),
     )
 
 
@@ -180,6 +190,48 @@ async def create_playlist(
 ) -> PlaylistDetailResponse:
     playlist = await service.create_playlist(body.name, user_id=current_user.id)
     return _detail_to_response(playlist, [], is_owner=True, owner_name=None)
+
+
+@router.get("/spotify/sync-status", response_model=SpotifySyncStatusResponse)
+async def spotify_sync_status(
+    service: PlaylistServiceDep,
+    _admin: CurrentAdminDep,
+) -> SpotifySyncStatusResponse:
+    from services.spotify_sync_scheduler import get_last_run
+
+    run = get_last_run()
+    linked = await service.get_spotify_synced_playlists()
+    return SpotifySyncStatusResponse(
+        last_run_at=run.get("last_run_at"),
+        next_run_at=run.get("next_run_at"),
+        interval_minutes=run.get("interval_minutes", 60.0),
+        checked=run.get("checked", 0),
+        updated=run.get("updated", 0),
+        failed=run.get("failed", 0),
+        playlists=[
+            SpotifySyncPlaylistRow(
+                playlist_id=p.id,
+                name=p.name,
+                status=p.spotify_sync_status,
+                synced_at=p.spotify_synced_at,
+                missing_count=p.spotify_missing_count,
+                error=p.spotify_sync_error,
+            )
+            for p in linked
+        ],
+    )
+
+
+@router.post("/{playlist_id}/spotify/detach", response_model=StatusMessageResponse)
+async def detach_spotify(
+    playlist_id: str,
+    service: PlaylistServiceDep,
+    current_user: CurrentUserDep,
+) -> StatusMessageResponse:
+    detached = await service.detach_spotify(playlist_id, current_user)
+    if not detached:
+        raise HTTPException(status_code=404, detail="Playlist is not linked to Spotify")
+    return StatusMessageResponse(status="ok", message="Playlist detached from Spotify")
 
 
 @router.get("/{playlist_id}", response_model=PlaylistDetailResponse | RedactedPlaylist)

@@ -24,7 +24,11 @@ from api.compat.common.cors import CompatCORSMiddleware
 from api.compat.common.path_case import CompatPathCaseMiddleware
 from api.compat.jellyfin.router import router as jellyfin_router
 from api.compat.subsonic.router import router as subsonic_router
+from api import music_assistant as music_assistant_routes
+from services.music_assistant.client import get_music_assistant_client
+from services.spotify_sync_scheduler import run_spotify_sync_loop
 from api.v1.routes import (
+    activity,
     albums,
     artists,
     auth,
@@ -400,6 +404,8 @@ def _include_complete_target_routes(app: FastAPI) -> None:
     v1.include_router(following.router)
     v1.include_router(albums.router, dependencies=[Depends(_require_provider_album_id)])
     for router in (
+        activity.router,
+        music_assistant_routes.router,
         library_policies_target.router,
         library_management.router,
         home.router,
@@ -685,11 +691,22 @@ async def production_target_lifespan(app: FastAPI):
             except Exception:  # noqa: BLE001
                 logger.exception("Legacy pending migration scheduling failed")
         logger.info("target_startup.operational_runtime_started")
+        try:
+            await get_music_assistant_client().start()
+        except Exception:
+            logger.exception("Music Assistant client failed to start")
+        TaskRegistry.get_instance().register(
+            "spotify-playlist-sync",
+            asyncio.create_task(
+                run_spotify_sync_loop(get_target_spotify_import_service, get_preferences_service)
+            ),
+        )
         logger.info("DroppedNeedle target application started")
 
     try:
         yield
     finally:
+        await get_music_assistant_client().stop()
         registry = TaskRegistry.get_instance()
         # Cancel the watchdog before the snapshot+cancel_all pass so it cannot
         # restart a worker mid-shutdown and orphan the task.

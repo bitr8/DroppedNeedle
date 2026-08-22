@@ -18,6 +18,7 @@
 	import type { MenuItem } from '$lib/components/ContextMenu.svelte';
 	import SourcePickerDropdown from '$lib/components/SourcePickerDropdown.svelte';
 	import NowPlayingIndicator from '$lib/components/NowPlayingIndicator.svelte';
+	import AlbumRequestButton from '$lib/components/AlbumRequestButton.svelte';
 	import { Music, Trash2, ListPlus, ListStart, GripVertical, Play, X } from 'lucide-svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 
@@ -473,6 +474,19 @@
 								{/if}
 							{/if}
 						</span>
+						{#if !track.available_sources || track.available_sources.length === 0}
+							<span class="mt-0.5 flex items-center gap-1.5 text-[11px] text-warning">
+								not in library yet
+								{#if track.album_id}
+									<AlbumRequestButton
+										mbid={track.album_id}
+										artistName={track.artist_name}
+										albumName={track.album_name}
+										size="sm"
+									/>
+								{/if}
+							</span>
+						{/if}
 					</div>
 
 					<span class="text-sm text-base-content/40 tabular-nums shrink-0">

@@ -12,6 +12,7 @@
 		House,
 		Inbox,
 		LibraryBig,
+		ListChecks,
 		ListMusic,
 		LogOut,
 		Menu,
@@ -29,13 +30,11 @@
 	import { syncStatus } from '$lib/stores/syncStatus.svelte';
 	import { logout } from '$lib/utils/logout';
 	import type { SuggestResult } from '$lib/types';
-	import BatchDownloadIndicator from '$lib/components/BatchDownloadIndicator.svelte';
-	import CacheSyncIndicator from '$lib/components/CacheSyncIndicator.svelte';
+	import ActivityBell from '$lib/components/activity/ActivityBell.svelte';
 	import ConcertsNavBadge from '$lib/components/ConcertsNavBadge.svelte';
 	import DegradedBanner from '$lib/components/DegradedBanner.svelte';
 	import DownloadsNavBadge from '$lib/components/DownloadsNavBadge.svelte';
 	import Footer from '$lib/components/Footer.svelte';
-	import LibraryActivityStrip from '$lib/components/library/LibraryActivityStrip.svelte';
 	import NewReleasesNavBadge from '$lib/components/NewReleasesNavBadge.svelte';
 	import PendingApprovalNavBadge from '$lib/components/PendingApprovalNavBadge.svelte';
 	import SearchSuggestions from '$lib/components/SearchSuggestions.svelte';
@@ -95,9 +94,7 @@
 	<input id="main-drawer" type="checkbox" class="drawer-toggle" />
 
 	<div class="drawer-content flex min-w-0 flex-col isolate">
-		<div
-			class="droppedneedle-topbar navbar bg-base-100/95 backdrop-blur shadow-sm sticky top-0 z-50"
-		>
+		<div class="droppedneedle-topbar navbar sticky top-0 z-50">
 			<div class="navbar-start w-auto">
 				<a href="/" class="btn btn-ghost px-2 max-xs:hidden sm:px-4" aria-label="Home">
 					<img src="/logo_wide.png" alt="DroppedNeedle" class="h-8 hidden sm:block" />
@@ -129,8 +126,6 @@
 				</a>
 			</div>
 		</div>
-
-		<LibraryActivityStrip />
 
 		<div
 			class="droppedneedle-main-content flex-1"
@@ -287,6 +282,18 @@
 				</li>
 				<li>
 					<a
+						href="/review"
+						class="is-drawer-close:tooltip is-drawer-close:tooltip-right"
+						class:menu-active={isNavActive('/review')}
+						aria-current={isNavActive('/review') ? 'page' : undefined}
+						data-tip="Review"
+					>
+						<ListChecks class="h-6 w-6" />
+						<span class="is-drawer-close:hidden">Review</span>
+					</a>
+				</li>
+				<li>
+					<a
 						href="/requests?tab=approvals"
 						class="is-drawer-close:tooltip is-drawer-close:tooltip-right"
 						data-tip="Approvals"
@@ -300,6 +307,9 @@
 				</li>
 			</ul>
 			<div class="w-full p-2 flex flex-col gap-1" class:pb-24={playerStore.isPlayerVisible}>
+				<div class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="Activity">
+					<ActivityBell />
+				</div>
 				<div class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip={settingsLabel}>
 					<a
 						href={settingsHref}
@@ -373,7 +383,7 @@
 		class:active={isNavActive('/library')}
 		aria-current={isNavActive('/library') ? 'page' : undefined}
 	>
-		<Menu />
+		<LibraryBig />
 		<span>Library</span>
 		{#if syncStatus.isActive}
 			<span class="droppedneedle-bottom-nav__badge" aria-label="Library sync in progress"></span>
@@ -416,6 +426,3 @@
 		<button aria-label="Close modal">close</button>
 	</form>
 </dialog>
-
-<CacheSyncIndicator />
-<BatchDownloadIndicator />

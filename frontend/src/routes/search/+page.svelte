@@ -1,14 +1,27 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import AlbumCard from '$lib/components/AlbumCard.svelte';
+	import AlbumImage from '$lib/components/AlbumImage.svelte';
+	import AlbumRequestButton from '$lib/components/AlbumRequestButton.svelte';
 	import SearchArtistCard from '$lib/components/SearchArtistCard.svelte';
+	import SearchSuggestions from '$lib/components/SearchSuggestions.svelte';
 	import ViewMoreAlbumCard from '$lib/components/ViewMoreAlbumCard.svelte';
 	import ViewMoreArtistCard from '$lib/components/ViewMoreArtistCard.svelte';
 	import ArtistCardSkeleton from '$lib/components/ArtistCardSkeleton.svelte';
 	import AlbumCardSkeleton from '$lib/components/AlbumCardSkeleton.svelte';
-	import type { EnrichmentResponse, EnrichmentSource, SearchRemoteStatus } from '$lib/types';
+	import type {
+		Album,
+		EnrichmentResponse,
+		EnrichmentSource,
+		SearchRemoteStatus,
+		SuggestResult
+	} from '$lib/types';
 	import { colors } from '$lib/colors';
+	import { albumHref } from '$lib/utils/entityRoutes';
+	import { authStore } from '$lib/stores/authStore.svelte';
+	import { libraryStore } from '$lib/stores/library';
 	import { searchStore } from '$lib/stores/search';
 	import {
 		fetchEnrichmentBatch,
@@ -93,6 +106,72 @@
 		topAlbum ? albums.filter((a) => a.musicbrainz_id !== topAlbum?.musicbrainz_id) : albums
 	);
 
+	function isAlbumInLibrary(album: Album): boolean {
+		return (
+			libraryStore.isInLibrary(album.musicbrainz_id) ||
+			(!$libraryStore.initialized && album.in_library) ||
+			false
+		);
+	}
+	function isAlbumRequested(album: Album): boolean {
+		return (
+			!isAlbumInLibrary(album) &&
+			(album.requested || libraryStore.isRequested(album.musicbrainz_id))
+		);
+	}
+	let libraryAlbums = $derived(displayedAlbums.filter((album) => isAlbumInLibrary(album)));
+	let requestableAlbums = $derived(displayedAlbums.filter((album) => !isAlbumInLibrary(album)));
+
+	const RECENT_SEARCHES_LIMIT = 8;
+	function recentSearchesKey(): string {
+		return `dn:recent_searches:${authStore.user?.id ?? 'anon'}`;
+	}
+	function loadRecentSearches(): string[] {
+		try {
+			const raw = localStorage.getItem(recentSearchesKey());
+			return raw ? (JSON.parse(raw) as string[]) : [];
+		} catch {
+			return [];
+		}
+	}
+	function saveRecentSearch(query: string) {
+		const trimmed = query.trim();
+		if (!trimmed) return;
+		try {
+			const deduped = loadRecentSearches().filter(
+				(item) => item.toLowerCase() !== trimmed.toLowerCase()
+			);
+			recentSearches = [trimmed, ...deduped].slice(0, RECENT_SEARCHES_LIMIT);
+			localStorage.setItem(recentSearchesKey(), JSON.stringify(recentSearches));
+		} catch {
+			// localStorage unavailable (private browsing, quota) — recent searches just won't persist
+		}
+	}
+
+	let heroQuery = $derived(data.query);
+	let recentSearches = $state<string[]>([]);
+
+	$effect(() => {
+		if (!hasSearched) recentSearches = loadRecentSearches();
+	});
+
+	function handleHeroSearch() {
+		const trimmed = heroQuery.trim();
+		if (!trimmed) return;
+		saveRecentSearch(trimmed);
+		goto(`/search?q=${encodeURIComponent(trimmed)}`);
+	}
+
+	function handleHeroSelect(result: SuggestResult) {
+		saveRecentSearch(heroQuery.trim() || result.title);
+		const routeId = result.type === 'artist' ? '/artist/[id]' : '/album/[id]';
+		goto(resolve(routeId, { id: result.musicbrainz_id }));
+	}
+
+	function handleRecentSearch(query: string) {
+		goto(`/search?q=${encodeURIComponent(query)}`);
+	}
+
 	function navigateToBucket(bucket: 'artists' | 'albums') {
 		if (data.query) {
 			goto(`/search/${bucket}?q=${encodeURIComponent(data.query)}`);
@@ -148,6 +227,15 @@
 </script>
 
 {#if hasSearched || isSearching}
+	<div class="px-4 sm:px-8 pt-4">
+		<SearchSuggestions
+			bind:query={heroQuery}
+			onSearch={handleHeroSearch}
+			onSelect={handleHeroSelect}
+			placeholder="Search artists, albums…"
+			id="search-results-field"
+		/>
+	</div>
 	<div class="px-8 pt-4 pb-2">
 		<div class="flex gap-2">
 			<button
@@ -276,7 +364,7 @@
 						{/each}
 					</div>
 				</div>
-			{:else if displayedAlbums.length > 0}
+			{:else if displayedAlbums.length > 0 && authStore.isAdmin}
 				<div class="bg-base-200 rounded-box p-4">
 					<div
 						class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
@@ -292,13 +380,113 @@
 						{/each}
 					</div>
 				</div>
+			{:else if displayedAlbums.length > 0}
+				<div class="space-y-6">
+					<div>
+						<h3 class="mb-2 text-base font-semibold text-fg-muted">In your library</h3>
+						{#if libraryAlbums.length > 0}
+							<div
+								class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+							>
+								{#each libraryAlbums as album (album.musicbrainz_id)}
+									<AlbumCard
+										{album}
+										{enrichmentSource}
+										onenrichmentrequest={() => enrichmentBatcher.requestAlbum(album)}
+									/>
+								{/each}
+							</div>
+						{:else}
+							<p class="rounded-card border border-border bg-surface p-4 text-base text-fg-subtle">
+								None of these are in your library yet.
+							</p>
+						{/if}
+					</div>
+					<div>
+						<h3 class="mb-2 text-base font-semibold text-fg-muted">Not in library — Request</h3>
+						{#if requestableAlbums.length > 0}
+							<div class="space-y-2">
+								{#each requestableAlbums as album (album.musicbrainz_id)}
+									<div
+										class="flex items-center gap-3 rounded-card border border-border bg-surface p-2"
+									>
+										<a
+											href={albumHref(album.musicbrainz_id)}
+											class="flex min-w-0 flex-1 items-center gap-3"
+										>
+											<AlbumImage
+												mbid={album.local_id ?? album.musicbrainz_id}
+												customUrl={album.cover_url}
+												remoteUrl={album.album_thumb_url ?? null}
+												alt={album.title}
+												size="sm"
+												className="size-12 shrink-0"
+											/>
+											<div class="min-w-0">
+												<div class="truncate text-base font-medium text-fg">{album.title}</div>
+												<div class="truncate text-sm text-fg-muted">
+													{#if album.artist}{album.artist}{/if}
+													{#if album.year}&middot; {album.year}{/if}
+												</div>
+											</div>
+										</a>
+										{#if isAlbumRequested(album)}
+											<span class="shrink-0 px-2 text-sm text-fg-subtle">Requested</span>
+										{:else}
+											<AlbumRequestButton
+												mbid={album.musicbrainz_id}
+												artistName={album.artist ?? ''}
+												albumName={album.title}
+												year={album.year}
+											/>
+										{/if}
+									</div>
+								{/each}
+							</div>
+						{:else}
+							<p class="rounded-card border border-border bg-surface p-4 text-base text-fg-subtle">
+								Everything found is already in your library.
+							</p>
+						{/if}
+					</div>
+				</div>
 			{:else}
 				<div class="p-8 bg-base-200 rounded-box text-center text-gray-500">No albums found</div>
 			{/if}
 		</div>
 	</section>
 {:else}
-	<p class="text-center mt-32 text-gray-400">Enter a search query to get started.</p>
+	<div class="mx-auto max-w-xl px-4 pt-16 pb-8 sm:pt-24">
+		<h1 class="mb-6 text-center text-2xl font-bold text-fg">Search</h1>
+		<SearchSuggestions
+			bind:query={heroQuery}
+			onSearch={handleHeroSearch}
+			onSelect={handleHeroSelect}
+			placeholder="Search artists, albums…"
+			autofocus
+			id="search-hero-field"
+		/>
+		<p class="mt-3 text-center text-base text-fg-subtle">
+			Search your library and MusicBrainz for anything to play or request.
+		</p>
+
+		{#if recentSearches.length > 0}
+			<div class="mt-8">
+				<h2 class="mb-2 text-sm font-semibold text-fg-muted">Recent searches</h2>
+				<div class="flex flex-wrap gap-2">
+					{#each recentSearches as recent (recent)}
+						<button
+							type="button"
+							class="rounded-control border border-border bg-surface-raised px-3 py-2.5 text-base text-fg hover:bg-surface-hover"
+							onclick={() => handleRecentSearch(recent)}
+						>
+							{recent}
+						</button>
+					{/each}
+				</div>
+			</div>
+		{/if}
+	</div>
 {/if}
 
 {#if showToast}

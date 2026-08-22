@@ -38,10 +38,15 @@ export interface PlaylistSummary {
 	is_owner: boolean;
 	owner_name: string | null;
 	is_redacted: false;
+	// Spotify mirror status (§8.6).
+	spotify_sync_status: string | null;
+	spotify_synced_at: string | null;
+	spotify_missing_count: number;
 }
 
 export interface PlaylistDetail extends PlaylistSummary {
 	tracks: PlaylistTrack[];
+	spotify_sync_error?: string | null;
 }
 
 /** Admin's view of another user's PRIVATE playlist (D4): count + owner only. */
@@ -202,4 +207,16 @@ export interface BatchRequestResult {
 
 export async function requestMissingTracks(id: string): Promise<BatchRequestResult> {
 	return api.global.post<BatchRequestResult>(API.playlists.requestMissing(id));
+}
+
+export async function syncSpotifyPlaylist(
+	spotifyPlaylistId: string
+): Promise<{ playlist_id: string; status: string }> {
+	return api.global.post<{ playlist_id: string; status: string }>(
+		`/api/v1/me/spotify/playlists/${spotifyPlaylistId}/sync`
+	);
+}
+
+export async function detachSpotifyPlaylist(id: string): Promise<void> {
+	await api.global.post(`/api/v1/playlists/${id}/spotify/detach`);
 }

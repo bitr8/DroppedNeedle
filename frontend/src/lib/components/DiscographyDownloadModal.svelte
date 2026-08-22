@@ -95,11 +95,17 @@
 				artistId,
 				items.map((i) => i.musicbrainz_id)
 			);
+			const extras = [
+				result.skipped ? `${result.skipped} already requested` : null,
+				result.overflow ? `${result.overflow} over quota` : null
+			].filter(Boolean);
 			toastStore.show({
-				message: `Requested ${result.requested} album${result.requested !== 1 ? 's' : ''} for ${artistName}`,
+				message: `Requested ${result.requested} album${result.requested !== 1 ? 's' : ''} for ${artistName}${extras.length ? ` · ${extras.join(' · ')}` : ''}`,
 				type: 'success'
 			});
 			handleClose();
+		} else {
+			toastStore.show({ message: `Couldn't request albums for ${artistName}.`, type: 'error' });
 		}
 
 		submitting = false;
